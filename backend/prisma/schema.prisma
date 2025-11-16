@@ -1,0 +1,454 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  tokenId         BigInt?           @map("token_id") @db.UnsignedBigInt
+  fName           String            @map("f_name") @db.VarChar(255)
+  lName           String            @map("l_name") @db.VarChar(255)
+  email           String            @unique @db.VarChar(255)
+  emailVerifiedAt DateTime?         @map("email_verified_at")
+  password        String            @db.VarChar(255)
+  notification    Boolean           @default(true) @db.TinyInt
+  quiz            Boolean           @default(false) @db.TinyInt
+  point           String            @default("0") @db.VarChar(255)
+  phone           String            @unique @db.VarChar(255)
+  otp             String?           @db.VarChar(255)
+  isVerify        Boolean           @default(false) @map("is_verfiy") @db.TinyInt
+  rememberToken   String?           @map("remember_token") @db.VarChar(100)
+  createdAt       DateTime?         @default(now()) @map("created_at")
+  updatedAt       DateTime?         @updatedAt @map("updated_at")
+  
+  token           Token?            @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  stores          Store[]
+  orders          Order[]
+  reviews         ProductReview[]
+  prizeUsers      PrizeUser[]
+  locations       LocationUser[]
+  categoryUsers   CategoryUser[]
+  
+  @@map("users")
+}
+
+model Token {
+  id            BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  token         String      @unique @db.VarChar(255)
+  isskip        Boolean     @default(false) @db.TinyInt
+  islogin       Boolean     @default(false) @db.TinyInt
+  key           String?     @db.VarChar(255)
+  keyUpdatedAt  DateTime?   @map("key_updated_at")
+  quizToday     Boolean     @default(false) @map("quiz_today") @db.TinyInt
+  point         String      @default("0") @db.VarChar(255)
+  notification  Boolean     @default(true) @db.TinyInt
+  lang          String      @default("en") @db.VarChar(2)
+  createdAt     DateTime?   @default(now()) @map("created_at")
+  updatedAt     DateTime?   @updatedAt @map("updated_at")
+  
+  users         User[]
+  fcmTokens     FcmToken[]
+  carts         Cart[]
+  favourites    Favourite[]
+  
+  @@map("tokens")
+}
+
+model Product {
+  id              BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  categoryId      BigInt              @map("category_id") @db.UnsignedBigInt
+  storeId         BigInt              @map("store_id") @db.UnsignedBigInt
+  image           String              @db.VarChar(255)
+  price           Float?              @db.Double(10, 3)
+  discount        Float?              @db.Double(8, 3)
+  days            Int?
+  totalPrice      Float?              @map("total_price") @db.Double(10, 3)
+  amount          Int                 @default(0) @db.UnsignedInt
+  type            String?             @db.VarChar(255)
+  isPopular       Boolean             @default(false) @map("is_popular") @db.TinyInt
+  orderCount      Int                 @default(0) @map("order_count")
+  quantity        Int                 @default(0)
+  discountType    String?             @map("discount_type") @db.VarChar(255)
+  discountValue   Decimal?            @map("discount_value") @db.Decimal(10, 2)
+  images          Json?
+  name            String?             @db.VarChar(255)
+  description     String?             @db.Text
+  createdAt       DateTime?           @default(now()) @map("created_at")
+  updatedAt       DateTime?           @updatedAt @map("updated_at")
+  
+  category        Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  store           Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  translations    ProductTranslation[]
+  productImages   ProductImage[]
+  colors          ProductColor[]
+  sizes           ProductSize[]
+  reviews         ProductReview[]
+  carts           Cart[]
+  favourites      Favourite[]
+  orderProducts   OrderProduct[]
+  
+  @@map("products")
+}
+
+model Category {
+  id            BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  image         String                @db.VarChar(255)
+  parentId      BigInt?               @map("parent_id") @db.UnsignedBigInt
+  createdAt     DateTime?             @default(now()) @map("created_at")
+  updatedAt     DateTime?             @updatedAt @map("updated_at")
+  
+  parent        Category?             @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Category[]            @relation("CategoryToCategory")
+  translations  CategoryTranslation[]
+  products      Product[]
+  categoryUsers CategoryUser[]
+  
+  @@map("categories")
+}
+
+model Store {
+  id                    BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  image                 String              @db.VarChar(255)
+  userId                BigInt?             @map("user_id") @db.UnsignedBigInt
+  discountType          String?             @map("discount_type") @db.VarChar(255)
+  discountValue         Decimal             @default(0.00) @map("discount_value") @db.Decimal(8, 2)
+  allowCash             Boolean             @default(true) @map("allow_cash") @db.TinyInt
+  allowOnline           Boolean             @default(false) @map("allow_online") @db.TinyInt
+  deliveryType          String?             @map("delivery_type") @db.VarChar(255)
+  deliveryFee           Decimal?            @map("delivery_fee") @db.Decimal(8, 2)
+  shippingCompanyName   String?             @map("shipping_company_name") @db.VarChar(255)
+  baseShippingRate      Decimal?            @map("base_shipping_rate") @db.Decimal(8, 2)
+  discount              Float?              @db.Double(8, 3)
+  discountExp           DateTime?           @map("discount_exp")
+  name                  String?             @db.VarChar(255)
+  status                String              @default("pending") @db.VarChar(255)
+  createdAt             DateTime?           @default(now()) @map("created_at")
+  updatedAt             DateTime?           @updatedAt @map("updated_at")
+  
+  user                  User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  translations          StoreTranslation[]
+  products              Product[]
+  orders                Order[]
+  carts                 Cart[]
+  favourites            Favourite[]
+  
+  @@map("stores")
+}
+
+model Order {
+  id                  BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  orderId             String?         @map("order_id") @db.VarChar(255)
+  code                String?         @db.VarChar(255)
+  promocodeId         BigInt?         @map("promocode_id") @db.UnsignedBigInt
+  userId              BigInt?         @map("user_id") @db.UnsignedBigInt
+  storeId             BigInt?         @map("store_id") @db.UnsignedBigInt
+  locationId          BigInt?         @map("location_id") @db.UnsignedBigInt
+  deliveryCompanyId   BigInt?         @map("delivery_company_id") @db.UnsignedBigInt
+  driverId            BigInt?         @map("driver_id") @db.UnsignedBigInt
+  amount              Int             @default(0) @db.UnsignedInt
+  status              String          @default("pending") @db.VarChar(255)
+  review              String?         @db.Text
+  rate                String?         @db.VarChar(255)
+  platformProfit      Int             @default(0) @map("platform_profit") @db.UnsignedInt
+  paymentMethod       String?         @map("payment_method") @db.VarChar(255)
+  shippingMethod      String?         @map("shipping_method") @db.VarChar(255)
+  shippingOptionId    BigInt?         @map("shipping_option_id") @db.UnsignedBigInt
+  type                String          @default("delivery") @db.VarChar(255)
+  createdAt           DateTime?       @default(now()) @map("created_at")
+  updatedAt           DateTime?       @updatedAt @map("updated_at")
+  
+  user                User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store               Store?          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  location            LocationUser?   @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  shippingOption      ShippingOption? @relation(fields: [shippingOptionId], references: [id], onDelete: Cascade)
+  orderProducts       OrderProduct[]
+  
+  @@map("orders")
+}
+
+model Cart {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  productId   BigInt?     @map("product_id") @db.UnsignedBigInt
+  storeId     BigInt?     @map("store_id") @db.UnsignedBigInt
+  tokenId     BigInt      @map("token_id") @db.UnsignedBigInt
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  product     Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store       Store?      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  token       Token       @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  
+  @@map("carts")
+}
+
+model Favourite {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  productId   BigInt?     @map("product_id") @db.UnsignedBigInt
+  storeId     BigInt?     @map("store_id") @db.UnsignedBigInt
+  tokenId     BigInt      @map("token_id") @db.UnsignedBigInt
+  type        String      @default("product") @db.VarChar(255)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  product     Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store       Store?      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  token       Token       @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  
+  @@map("favourites")
+}
+
+model ProductTranslation {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  productId   BigInt      @map("product_id") @db.UnsignedBigInt
+  title       String      @db.VarChar(255)
+  description String?     @db.Text
+  language    String      @db.VarChar(2)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@map("product_translations")
+}
+
+model ProductImage {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  productId   BigInt      @map("product_id") @db.UnsignedBigInt
+  image       String      @db.VarChar(255)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@map("product_images")
+}
+
+model ProductColor {
+  id          BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  productId   BigInt        @map("product_id") @db.UnsignedBigInt
+  color       String        @db.VarChar(255)
+  createdAt   DateTime?     @default(now()) @map("created_at")
+  updatedAt   DateTime?     @updatedAt @map("updated_at")
+  
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderProducts OrderProduct[]
+  
+  @@map("product_colors")
+}
+
+model ProductSize {
+  id          BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  productId   BigInt        @map("product_id") @db.UnsignedBigInt
+  size        String        @db.VarChar(255)
+  createdAt   DateTime?     @default(now()) @map("created_at")
+  updatedAt   DateTime?     @updatedAt @map("updated_at")
+  
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderProducts OrderProduct[]
+  
+  @@map("product_sizes")
+}
+
+model ProductReview {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  productId   BigInt      @map("product_id") @db.UnsignedBigInt
+  userId      BigInt?     @map("user_id") @db.UnsignedBigInt
+  review      String?     @db.Text
+  rate        String      @db.VarChar(255)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user        User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("product_reviews")
+}
+
+model OrderProduct {
+  id          BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  orderId     BigInt        @map("order_id") @db.UnsignedBigInt
+  productId   BigInt        @map("product_id") @db.UnsignedBigInt
+  colorId     BigInt?       @map("color_id") @db.UnsignedBigInt
+  sizeId      BigInt?       @map("size_id") @db.UnsignedBigInt
+  quantity    Int           @default(1)
+  price       Decimal       @db.Decimal(10, 2)
+  createdAt   DateTime?     @default(now()) @map("created_at")
+  updatedAt   DateTime?     @updatedAt @map("updated_at")
+  
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  color       ProductColor? @relation(fields: [colorId], references: [id], onDelete: Cascade)
+  size        ProductSize?  @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  
+  @@map("order_products")
+}
+
+model CategoryTranslation {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  categoryId  BigInt      @map("category_id") @db.UnsignedBigInt
+  title       String      @db.VarChar(255)
+  language    String      @db.VarChar(2)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@map("category_translations")
+}
+
+model StoreTranslation {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  name        String      @db.VarChar(255)
+  location    String      @db.VarChar(255)
+  storeId     BigInt      @map("store_id") @db.UnsignedBigInt
+  language    String      @db.VarChar(2)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  @@map("store_translations")
+}
+
+model LocationUser {
+  id            BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  userId        BigInt      @map("user_id") @db.UnsignedBigInt
+  governateId   BigInt      @map("governate_id") @db.UnsignedBigInt
+  areaId        BigInt      @map("area_id") @db.UnsignedBigInt
+  description   String      @db.Text
+  type          String      @default("home") @db.VarChar(255)
+  title         String?     @db.VarChar(255)
+  createdAt     DateTime?   @default(now()) @map("created_at")
+  updatedAt     DateTime?   @updatedAt @map("updated_at")
+  
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        Order[]
+  
+  @@map("location_users")
+}
+
+model Prize {
+  id          BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  title       String            @db.VarChar(255)
+  createdAt   DateTime?         @default(now()) @map("created_at")
+  updatedAt   DateTime?         @updatedAt @map("updated_at")
+  
+  translations PrizeTranslation[]
+  prizeUsers   PrizeUser[]
+  
+  @@map("prizes")
+}
+
+model PrizeTranslation {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  prizeId     BigInt      @map("prize_id") @db.UnsignedBigInt
+  name        String      @db.VarChar(255)
+  language    String      @db.VarChar(2)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  prize       Prize       @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+  
+  @@map("prize_translations")
+}
+
+model PrizeUser {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  userId      BigInt      @map("user_id") @db.UnsignedBigInt
+  prizeId     BigInt      @map("prize_id") @db.UnsignedBigInt
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prize       Prize       @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+  
+  @@map("prize_users")
+}
+
+model ShippingOption {
+  id          BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  price       Int                         @default(0) @db.UnsignedInt
+  currency    String                      @default(" S.Y.P") @db.VarChar(30)
+  createdAt   DateTime?                   @default(now()) @map("created_at")
+  updatedAt   DateTime?                   @updatedAt @map("updated_at")
+  
+  translations ShippingOptionTranslation[]
+  orders       Order[]
+  
+  @@map("shipping_options")
+}
+
+model ShippingOptionTranslation {
+  id                BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  shippingOptionId  BigInt          @map("shipping_option_id") @db.UnsignedBigInt
+  name              String          @db.VarChar(255)
+  language          String          @db.VarChar(2)
+  createdAt         DateTime?       @default(now()) @map("created_at")
+  updatedAt         DateTime?       @updatedAt @map("updated_at")
+  
+  shippingOption    ShippingOption  @relation(fields: [shippingOptionId], references: [id], onDelete: Cascade)
+  
+  @@map("shipping_option_translations")
+}
+
+model FcmToken {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  tokenId     BigInt      @map("token_id") @db.UnsignedBigInt
+  fcmToken    String      @map("fcm_token") @db.VarChar(255)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  token       Token       @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  
+  @@map("fcm_tokens")
+}
+
+model CategoryUser {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  userId      BigInt      @map("user_id") @db.UnsignedBigInt
+  categoryId  BigInt      @map("category_id") @db.UnsignedBigInt
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@map("category_user")
+}
+
+model Banner {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  image       String      @db.VarChar(255)
+  createdAt   DateTime?   @default(now()) @map("created_at")
+  updatedAt   DateTime?   @updatedAt @map("updated_at")
+  
+  @@map("banners")
+}
+
+model Governate {
+  id            BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  status        String                  @default("active") @db.VarChar(255)
+  createdAt     DateTime?               @default(now()) @map("created_at")
+  updatedAt     DateTime?               @updatedAt @map("updated_at")
+  
+  translations  GovernateTranslation[]
+  
+  @@map("governates")
+}
+
+model GovernateTranslation {
+  id            BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  governateId   BigInt      @map("governate_id") @db.UnsignedBigInt
+  locale        String      @db.VarChar(255)
+  name          String      @db.VarChar(255)
+  createdAt     DateTime?   @default(now()) @map("created_at")
+  updatedAt     DateTime?   @updatedAt @map("updated_at")
+  
+  governate     Governate   @relation(fields: [governateId], references: [id], onDelete: Cascade)
+  
+  @@map("governate_translations")
+}
