@@ -3,6 +3,16 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const errorHandler = require('./middlewares/errorHandler');
 
+// Temporary: log unhandled errors so we can diagnose crashes
+process.on('unhandledRejection', (reason, p) => {
+  console.error('UNHANDLED_REJECTION at:', p, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT_EXCEPTION thrown:', err);
+  // keep default behavior (exit) after logging
+});
+
 // Load environment variables
 dotenv.config();
 
@@ -23,6 +33,7 @@ app.use('/api/products', require('./routes/product.routes'));
 app.use('/api/categories', require('./routes/category.routes'));
 app.use('/api/stores', require('./routes/store.routes'));
 app.use('/api/markets', require('./routes/market.routes'));
+app.use('/api/governates', require('./routes/governate.routes'));
 app.use('/api/cart', require('./routes/cart.routes'));
 app.use('/api/wishlist', require('./routes/wishlist.routes'));
 app.use('/api/orders', require('./routes/order.routes'));

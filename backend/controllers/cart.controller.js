@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const getImageUrl = require('../utils/getImageUrl');
 
 // Get user's token
 const getUserToken = async (userId) => {
@@ -57,7 +58,7 @@ const getCart = async (req, res, next) => {
         product: item.product ? {
           id: item.product.id.toString(),
           title: productTranslation.title || 'No title',
-          image: item.product.image,
+          image: getImageUrl(item.product.image),
           price: item.product.price,
           discount: item.product.discount,
           totalPrice: item.product.totalPrice,

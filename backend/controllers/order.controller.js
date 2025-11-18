@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const getImageUrl = require('../utils/getImageUrl');
 
 // Generate random order ID
 const generateOrderId = () => {
@@ -63,7 +64,7 @@ const getOrders = async (req, res, next) => {
     const formattedOrders = orders.map(order => {
       const storeTranslation = order.store?.translations[0] || {};
 
-      return {
+        return {
         id: order.id.toString(),
         orderId: order.orderId,
         code: order.code,
@@ -75,7 +76,7 @@ const getOrders = async (req, res, next) => {
         store: order.store ? {
           id: order.store.id.toString(),
           name: storeTranslation.name || 'Unknown',
-          image: order.store.image,
+          image: getImageUrl(order.store.image),
         } : null,
         products: order.orderProducts.map(op => {
           const productTranslation = op.product?.translations[0] || {};
@@ -84,7 +85,7 @@ const getOrders = async (req, res, next) => {
             product: {
               id: op.product.id.toString(),
               title: productTranslation.title || 'No title',
-              image: op.product.image,
+              image: getImageUrl(op.product.image),
             },
             quantity: op.quantity,
             price: parseFloat(op.price),
@@ -173,7 +174,7 @@ const getOrderById = async (req, res, next) => {
         id: order.store.id.toString(),
         name: storeTranslation.name || 'Unknown',
         location: storeTranslation.location || '',
-        image: order.store.image,
+        image: getImageUrl(order.store.image),
       } : null,
       products: order.orderProducts.map(op => {
         const productTranslation = op.product?.translations[0] || {};
@@ -182,7 +183,7 @@ const getOrderById = async (req, res, next) => {
           product: {
             id: op.product.id.toString(),
             title: productTranslation.title || 'No title',
-            image: op.product.image,
+            image: getImageUrl(op.product.image),
           },
           quantity: op.quantity,
           price: parseFloat(op.price),

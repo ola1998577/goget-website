@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const storeController = require('../controllers/store.controller');
+const governateController = require('../controllers/governate.controller');
 
-// Markets are essentially stores with special filtering
-router.get('/', storeController.getStores);
-router.get('/:id', storeController.getStoreById);
-router.get('/:id/products', storeController.getStoreProducts);
+// Markets are represented by governates (markets list comes from governates)
+router.get('/', governateController.getGovernates);
+router.get('/:id', governateController.getGovernateById);
 
 module.exports = router;

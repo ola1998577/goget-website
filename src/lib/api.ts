@@ -213,16 +213,18 @@ export const storeAPI = {
 
 // Market APIs (same as stores)
 export const marketAPI = {
+  // The backend treats markets as governates (market data comes from governates + translations)
   getMarkets: (params: any) => {
     const queryString = new URLSearchParams(params).toString();
-    return apiRequest(`/markets?${queryString}`);
+    return apiRequest(`/governates?${queryString}`);
   },
 
   getMarketById: (id: string, lang = 'en') =>
-    apiRequest(`/markets/${id}?lang=${lang}`),
+    apiRequest(`/governates/${id}?lang=${lang}`),
 
   getMarketProducts: (id: string, params: any) => {
     const queryString = new URLSearchParams(params).toString();
+    // Reuse category endpoint to fetch products by category/governate if needed; keep route placeholder
     return apiRequest(`/markets/${id}/products?${queryString}`);
   },
 };

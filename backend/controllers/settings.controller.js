@@ -32,11 +32,12 @@ const getSettings = async (req, res, next) => {
 const getBanners = async (req, res, next) => {
   try {
     const banners = await prisma.banner.findMany();
+    const getImageUrl = require('../utils/getImageUrl');
 
     res.json({
       banners: banners.map(b => ({
         id: b.id.toString(),
-        image: b.image,
+        image: getImageUrl(b.image),
       }))
     });
   } catch (error) {

@@ -34,18 +34,19 @@ const getCategories = async (req, res, next) => {
 
     const formattedCategories = categories.map(category => {
       const translation = category.translations[0] || {};
+      const getImageUrl = require('../utils/getImageUrl');
       
       return {
         id: category.id.toString(),
         title: translation.title || 'No title',
-        image: category.image,
+        image: getImageUrl(category.image),
         productCount: category._count.products,
         children: category.children.map(child => {
           const childTranslation = child.translations[0] || {};
           return {
             id: child.id.toString(),
             title: childTranslation.title || 'No title',
-            image: child.image,
+            image: getImageUrl(child.image),
           };
         })
       };
@@ -95,11 +96,12 @@ const getCategoryById = async (req, res, next) => {
 
     const translation = category.translations[0] || {};
     const parentTranslation = category.parent?.translations[0] || {};
+    const getImageUrl = require('../utils/getImageUrl');
 
     const formattedCategory = {
       id: category.id.toString(),
       title: translation.title || 'No title',
-      image: category.image,
+      image: getImageUrl(category.image),
       productCount: category._count.products,
       parent: category.parent ? {
         id: category.parent.id.toString(),
@@ -110,7 +112,7 @@ const getCategoryById = async (req, res, next) => {
         return {
           id: child.id.toString(),
           title: childTranslation.title || 'No title',
-          image: child.image,
+          image: getImageUrl(child.image),
         };
       })
     };
@@ -178,6 +180,7 @@ const getCategoryProducts = async (req, res, next) => {
       prisma.product.count({ where: { categoryId: BigInt(id) } }),
     ]);
 
+    const getImageUrl = require('../utils/getImageUrl');
     const formattedProducts = products.map(product => {
       const translation = product.translations[0] || {};
       const storeTranslation = product.store?.translations[0] || {};
@@ -191,7 +194,7 @@ const getCategoryProducts = async (req, res, next) => {
         id: product.id.toString(),
         title: translation.title || 'No title',
         description: translation.description || '',
-        image: product.image,
+        image: getImageUrl(product.image),
         price: product.price,
         discount: product.discount,
         totalPrice: product.totalPrice,

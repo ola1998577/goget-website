@@ -1,13 +1,15 @@
 const prisma = require('../config/database');
+const getImageUrl = require('../utils/getImageUrl');
 
 // Get all stores
 const getStores = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, search, lang = 'en' } = req.query;
+    const { page = 1, limit = 20, search, lang = 'en', marketId } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const take = parseInt(limit);
 
     const where = {};
+
     if (search) {
       where.translations = {
         some: {
@@ -15,6 +17,19 @@ const getStores = async (req, res, next) => {
           language: lang,
         }
       };
+    }
+
+    // If marketId provided, filter stores by products that belong to categories linked to the governate
+    if (marketId) {
+      const categories = await prisma.category.findMany({ where: { governateId: BigInt(marketId) }, select: { id: true } });
+      const categoryIds = categories.map(c => c.id);
+      if (categoryIds.length > 0) {
+        // add a products.some filter
+        where.products = { some: { categoryId: { in: categoryIds } } };
+      } else {
+        // no categories linked to this governate -> empty result
+        return res.json({ success: true, data: [], pagination: { page: parseInt(page), limit: parseInt(limit), total: 0, pages: 0 } });
+      }
     }
 
     const [stores, total] = await Promise.all([
@@ -35,22 +50,29 @@ const getStores = async (req, res, next) => {
       prisma.store.count({ where }),
     ]);
 
+    const getImageUrl = require('../utils/getImageUrl');
     const formattedStores = stores.map(store => {
       const translation = store.translations[0] || {};
       
       return {
         id: store.id.toString(),
         name: translation.name || 'Unknown',
+        nameAr: translation.name || 'Unknown',
         location: translation.location || '',
-        image: store.image,
+        logo: getImageUrl(store.image),
+        image: getImageUrl(store.image),
         discount: store.discount,
         productCount: store._count.products,
         status: store.status,
+        rating: 4.5,
+        description: '',
+        descriptionAr: '',
       };
     });
 
     res.json({
-      stores: formattedStores,
+      success: true,
+      data: formattedStores,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -93,10 +115,27 @@ const getStoreById = async (req, res, next) => {
     });
 
     if (!store) {
-      return res.status(404).json({ error: 'Store not found' });
+      return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
+    const getImageUrl = require('../utils/getImageUrl');
     const translation = store.translations[0] || {};
+
+    // Find the first product's governateId to determine the market
+    let marketId = null;
+    if (store.products.length > 0) {
+      const firstProduct = await prisma.product.findUnique({
+        where: { id: store.products[0].id },
+        include: {
+          category: {
+            select: { governateId: true }
+          }
+        }
+      });
+      if (firstProduct?.category?.governateId) {
+        marketId = firstProduct.category.governateId.toString();
+      }
+    }
 
     const formattedProducts = store.products.map(product => {
       const productTranslation = product.translations[0] || {};
@@ -108,7 +147,7 @@ const getStoreById = async (req, res, next) => {
       return {
         id: product.id.toString(),
         title: productTranslation.title || 'No title',
-        image: product.image,
+        image: getImageUrl(product.image),
         price: product.price,
         discount: product.discount,
         totalPrice: product.totalPrice,
@@ -119,20 +158,28 @@ const getStoreById = async (req, res, next) => {
     const formattedStore = {
       id: store.id.toString(),
       name: translation.name || 'Unknown',
+      nameAr: translation.name || 'Unknown',
+      description: '',
+      descriptionAr: '',
+      logo: getImageUrl(store.image),
+      rating: 4.5,
+      reviewCount: 0,
+      productCount: store._count.products,
+      marketId: marketId || '1',
+      isActive: store.status === 'active' || store.status === 1,
       location: translation.location || '',
-      image: store.image,
+      image: getImageUrl(store.image),
       discount: store.discount,
       discountExp: store.discountExp,
       allowCash: store.allowCash,
       allowOnline: store.allowOnline,
       deliveryType: store.deliveryType,
       deliveryFee: store.deliveryFee ? parseFloat(store.deliveryFee) : null,
-      productCount: store._count.products,
       products: formattedProducts,
       status: store.status,
     };
 
-    res.json({ store: formattedStore });
+    res.json({ success: true, data: formattedStore });
   } catch (error) {
     next(error);
   }
@@ -197,18 +244,23 @@ const getStoreProducts = async (req, res, next) => {
       return {
         id: product.id.toString(),
         title: translation.title || 'No title',
+        name: translation.title || 'No title',
+        nameAr: translation.title || 'No title',
         description: translation.description || '',
-        image: product.image,
+        image: getImageUrl(product.image),
         price: product.price,
         discount: product.discount,
         totalPrice: product.totalPrice,
         rating: parseFloat(avgRating.toFixed(1)),
         reviewCount: product.reviews.length,
+        categoryId: product.categoryId.toString(),
+        storeId: product.storeId?.toString(),
       };
     });
 
     res.json({
-      products: formattedProducts,
+      success: true,
+      data: formattedProducts,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

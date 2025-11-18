@@ -10,6 +10,7 @@ import { HeroCarousel } from "@/components/HeroCarousel";
 import { WheelOfFortuneButton } from "@/components/WheelOfFortuneButton";
 import { AppDownload } from "@/components/AppDownload";
 import { productAPI, storeAPI, marketAPI } from "@/lib/api";
+import { settingsAPI } from "@/lib/api";
 import { Product, Store as StoreType, Market } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -18,6 +19,7 @@ const Home = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [stores, setStores] = useState<StoreType[]>([]);
   const [markets, setMarkets] = useState<Market[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -29,6 +31,11 @@ const Home = () => {
           storeAPI.getStores({ limit: 6, lang: language }),
           marketAPI.getMarkets({ lang: language }),
         ]);
+
+        // fetch banners separately (hero)
+        const bannersRes = await settingsAPI.getBanners();
+
+        if (bannersRes && bannersRes.banners) setBanners(bannersRes.banners || []);
 
         if (productsRes.success) setProducts(productsRes.data || []);
         if (storesRes.success) setStores(storesRes.data || []);
@@ -53,7 +60,7 @@ const Home = () => {
       </div>
 
       {/* Hero Carousel Section */}
-      <HeroCarousel />
+      <HeroCarousel banners={banners} />
 
       {/* Markets Section */}
       <section className="container mx-auto px-4 mb-16">

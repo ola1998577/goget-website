@@ -17,11 +17,12 @@ exports.getGovernates = async (req, res, next) => {
 
     // Format data to include translated name
     const formattedGovernates = governates.map(gov => ({
-      id: gov.id,
+      id: gov.id?.toString(),
       name: gov.translations[0]?.name || 'N/A',
       status: gov.status,
       createdAt: gov.createdAt,
-      updatedAt: gov.updatedAt
+      updatedAt: gov.updatedAt,
+      categoriesCount: gov._count?.categories || 0,
     }));
 
     res.json({
@@ -56,12 +57,27 @@ exports.getGovernateById = async (req, res, next) => {
     }
 
     const formatted = {
-      id: governate.id,
+      id: governate.id?.toString(),
       name: governate.translations[0]?.name || 'N/A',
       status: governate.status,
       createdAt: governate.createdAt,
-      updatedAt: governate.updatedAt
+      updatedAt: governate.updatedAt,
+      categories: [],
     };
+
+    // include categories for this governate (simple list)
+    const categories = await prisma.category.findMany({
+      where: { governateId: governate.id },
+      include: { translations: { where: { language: lang } } },
+      orderBy: { id: 'asc' }
+    });
+
+    const getImageUrl = require('../utils/getImageUrl');
+    formatted.categories = categories.map(c => ({
+      id: c.id.toString(),
+      title: c.translations[0]?.title || '',
+      image: getImageUrl(c.image),
+    }));
 
     res.json({
       success: true,

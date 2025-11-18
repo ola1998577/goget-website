@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const getImageUrl = require('../utils/getImageUrl');
 
 // Get all products with filters
 const getProducts = async (req, res, next) => {
@@ -34,12 +35,57 @@ const getProducts = async (req, res, next) => {
       };
     }
 
-    if (categoryId) {
-      where.categoryId = BigInt(categoryId);
+    // helper to detect usable id values from query params
+    const isUsable = v => typeof v !== 'undefined' && v !== null && v !== '' && v !== 'undefined' && v !== 'null';
+
+    if (isUsable(categoryId)) {
+      // support single id, comma-separated ids, or array of ids
+      if (Array.isArray(categoryId)) {
+        const ids = categoryId.filter(isUsable);
+        const bigIds = [];
+        for (const id of ids) {
+          try { bigIds.push(BigInt(id)); } catch (e) { }
+        }
+        if (bigIds.length === 1) where.categoryId = bigIds[0];
+        else if (bigIds.length > 1) where.categoryId = { in: bigIds };
+      } else if (typeof categoryId === 'string' && categoryId.includes(',')) {
+        const ids = categoryId.split(',').map(s => s.trim()).filter(isUsable);
+        const bigIds = [];
+        for (const id of ids) {
+          try { bigIds.push(BigInt(id)); } catch (e) { }
+        }
+        if (bigIds.length === 1) where.categoryId = bigIds[0];
+        else if (bigIds.length > 1) where.categoryId = { in: bigIds };
+      } else {
+        // single value
+        try {
+          where.categoryId = BigInt(categoryId);
+        } catch (e) { /* ignore invalid id */ }
+      }
     }
 
-    if (storeId) {
-      where.storeId = BigInt(storeId);
+    if (isUsable(storeId)) {
+      if (Array.isArray(storeId)) {
+        const ids = storeId.filter(isUsable);
+        const bigIds = [];
+        for (const id of ids) {
+          try { bigIds.push(BigInt(id)); } catch (e) { }
+        }
+        if (bigIds.length === 1) where.storeId = bigIds[0];
+        else if (bigIds.length > 1) where.storeId = { in: bigIds };
+      } else if (typeof storeId === 'string' && storeId.includes(',')) {
+        const ids = storeId.split(',').map(s => s.trim()).filter(isUsable);
+        const bigIds = [];
+        for (const id of ids) {
+          try { bigIds.push(BigInt(id)); } catch (e) { }
+        }
+        if (bigIds.length === 1) where.storeId = bigIds[0];
+        else if (bigIds.length > 1) where.storeId = { in: bigIds };
+      } else {
+        try {
+          where.storeId = BigInt(storeId);
+        } catch (e) { /* ignore invalid id */ }
+      }
     }
 
     if (minPrice || maxPrice) {
@@ -78,41 +124,36 @@ const getProducts = async (req, res, next) => {
         take,
         orderBy,
         include: {
-          translations: {
-            where: { language: lang }
-          },
-          productImages: true,
-          colors: true,
-          sizes: true,
-          store: {
-            include: {
-              translations: {
-                where: { language: lang }
+            // include all translations and pick the matching language below
+            translations: true,
+            productImages: true,
+            colors: true,
+            sizes: true,
+            store: {
+              include: {
+                translations: true
+              }
+            },
+            category: {
+              include: {
+                translations: true
+              }
+            },
+            reviews: {
+              select: {
+                rate: true,
               }
             }
           },
-          category: {
-            include: {
-              translations: {
-                where: { language: lang }
-              }
-            }
-          },
-          reviews: {
-            select: {
-              rate: true,
-            }
-          }
-        },
       }),
       prisma.product.count({ where }),
     ]);
 
     // Format products
     const formattedProducts = products.map(product => {
-      const translation = product.translations[0] || {};
-      const storeTranslation = product.store?.translations[0] || {};
-      const categoryTranslation = product.category?.translations[0] || {};
+      const translation = (product.translations || []).find(t => t.language === lang) || product.translations[0] || {};
+      const storeTranslation = (product.store?.translations || []).find(t => t.language === lang) || product.store?.translations[0] || {};
+      const categoryTranslation = (product.category?.translations || []).find(t => t.language === lang) || product.category?.translations[0] || {};
       
       // Calculate average rating
       const ratings = product.reviews.map(r => parseInt(r.rate));
@@ -121,36 +162,65 @@ const getProducts = async (req, res, next) => {
         : 0;
 
         console.log('Product:', product.id.toString(), 'Avg Rating:', avgRating);
+      // helper to normalize color strings into objects expected by frontend
+      const normalizeColor = (c) => {
+        const colorVal = c.color || c;
+        const isHex = typeof colorVal === 'string' && colorVal.startsWith('#');
+        return {
+          id: c.id ? c.id.toString() : (colorVal || '').toString(),
+          name: colorVal || '',
+          nameAr: colorVal || '',
+          hex: colorVal || '',
+        };
+      };
+
+      const normalizeSize = (s) => ({ id: s.id ? s.id.toString() : (s || '').toString(), name: s.size || s, nameAr: s.size || s });
+
+      const stockVal = (product.quantity || product.amount || 0);
+
+      const getImageUrl = require('../utils/getImageUrl');
+
       return {
         id: product.id.toString(),
+        name: translation.title || 'No title',
+        nameAr: translation.title || 'No title',
         title: translation.title || 'No title',
         description: translation.description || '',
-        image: product.image,
+        descriptionAr: translation.description || '',
+        image: getImageUrl(product.image),
         price: product.price,
         discount: product.discount,
         totalPrice: product.totalPrice,
+        oldPrice: product.totalPrice || null,
         quantity: product.quantity,
         isPopular: product.isPopular,
         orderCount: product.orderCount,
         rating: parseFloat(avgRating.toFixed(1)),
+        reviews: product.reviews.length,
         reviewCount: product.reviews.length,
-        images: product.productImages.map(img => img.image),
-        colors: product.colors.map(c => c.color),
-        sizes: product.sizes.map(s => s.size),
-        store: {
+        images: product.productImages.map(img => getImageUrl(img.image)),
+        colors: product.colors.map(c => normalizeColor(c)),
+        sizes: product.sizes.map(s => normalizeSize(s)),
+        stock: stockVal,
+        inStock: stockVal > 0,
+        storeId: product.storeId?.toString(),
+        categoryId: product.categoryId?.toString(),
+        marketId: '1',
+        store: product.store ? {
           id: product.store.id.toString(),
           name: storeTranslation.name || 'Unknown',
-          image: product.store.image,
-        },
-        category: {
+          image: getImageUrl(product.store.image),
+        } : null,
+        category: product.category ? {
           id: product.category.id.toString(),
           title: categoryTranslation.title || 'Unknown',
-        },
+        } : null,
       };
     });
 
     res.json({
-      products: formattedProducts,
+      success: true,
+      data: formattedProducts,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -172,24 +242,18 @@ const getProductById = async (req, res, next) => {
     const product = await prisma.product.findUnique({
       where: { id: BigInt(id) },
       include: {
-        translations: {
-          where: { language: lang }
-        },
+        translations: true,
         productImages: true,
         colors: true,
         sizes: true,
         store: {
           include: {
-            translations: {
-              where: { language: lang }
-            }
+            translations: true
           }
         },
         category: {
           include: {
-            translations: {
-              where: { language: lang }
-            }
+            translations: true
           }
         },
         reviews: {
@@ -210,12 +274,12 @@ const getProductById = async (req, res, next) => {
     });
 
     if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    const translation = product.translations[0] || {};
-    const storeTranslation = product.store?.translations[0] || {};
-    const categoryTranslation = product.category?.translations[0] || {};
+    const translation = (product.translations || []).find(t => t.language === lang) || product.translations[0] || {};
+    const storeTranslation = (product.store?.translations || []).find(t => t.language === lang) || product.store?.translations[0] || {};
+    const categoryTranslation = (product.category?.translations || []).find(t => t.language === lang) || product.category?.translations[0] || {};
 
     // Calculate average rating
     const ratings = product.reviews.map(r => parseInt(r.rate));
@@ -225,31 +289,41 @@ const getProductById = async (req, res, next) => {
 
     const formattedProduct = {
       id: product.id.toString(),
+      name: translation.title || 'No title',
+      nameAr: translation.title || 'No title',
       title: translation.title || 'No title',
       description: translation.description || '',
-      image: product.image,
+      descriptionAr: translation.description || '',
+      image: getImageUrl(product.image),
       price: product.price,
       discount: product.discount,
       totalPrice: product.totalPrice,
+      oldPrice: product.totalPrice || null,
       quantity: product.quantity,
       isPopular: product.isPopular,
       orderCount: product.orderCount,
       rating: parseFloat(avgRating.toFixed(1)),
+      reviews: product.reviews.length,
       reviewCount: product.reviews.length,
-      images: product.productImages.map(img => img.image),
-      colors: product.colors.map(c => ({ id: c.id.toString(), color: c.color })),
-      sizes: product.sizes.map(s => ({ id: s.id.toString(), size: s.size })),
+      images: product.productImages.map(img => getImageUrl(img.image)),
+      colors: product.colors.map(c => ({ id: c.id.toString(), name: c.color, nameAr: c.color, hex: c.color })),
+      sizes: product.sizes.map(s => ({ id: s.id.toString(), name: s.size, nameAr: s.size })),
+      stock: (product.quantity || product.amount || 0),
+      inStock: ((product.quantity || product.amount || 0) > 0),
+      storeId: product.storeId?.toString(),
+      categoryId: product.categoryId?.toString(),
+      marketId: '1',
       store: {
         id: product.store.id.toString(),
         name: storeTranslation.name || 'Unknown',
         location: storeTranslation.location || '',
-        image: product.store.image,
+        image: getImageUrl(product.store.image),
       },
       category: {
         id: product.category.id.toString(),
         title: categoryTranslation.title || 'Unknown',
       },
-      reviews: product.reviews.map(review => ({
+      reviewDetails: product.reviews.map(review => ({
         id: review.id.toString(),
         user: {
           name: `${review.user.fName} ${review.user.lName}`,
@@ -260,7 +334,7 @@ const getProductById = async (req, res, next) => {
       }))
     };
 
-    res.json({ product: formattedProduct });
+    res.json({ success: true, data: formattedProduct });
   } catch (error) {
     next(error);
   }
@@ -276,14 +350,10 @@ const getPopularProducts = async (req, res, next) => {
       take: parseInt(limit),
       orderBy: { orderCount: 'desc' },
       include: {
-        translations: {
-          where: { language: lang }
-        },
+        translations: true,
         store: {
           include: {
-            translations: {
-              where: { language: lang }
-            }
+            translations: true
           }
         },
         reviews: {
@@ -293,8 +363,8 @@ const getPopularProducts = async (req, res, next) => {
     });
 
     const formattedProducts = products.map(product => {
-      const translation = product.translations[0] || {};
-      const storeTranslation = product.store?.translations[0] || {};
+      const translation = (product.translations || []).find(t => t.language === lang) || product.translations[0] || {};
+      const storeTranslation = (product.store?.translations || []).find(t => t.language === lang) || product.store?.translations[0] || {};
       
       const ratings = product.reviews.map(r => parseInt(r.rate));
       const avgRating = ratings.length > 0 
@@ -304,7 +374,8 @@ const getPopularProducts = async (req, res, next) => {
       return {
         id: product.id.toString(),
         title: translation.title || 'No title',
-        image: product.image,
+        name: translation.title || 'No title',
+        image: getImageUrl(product.image),
         price: product.price,
         discount: product.discount,
         totalPrice: product.totalPrice,
@@ -317,7 +388,55 @@ const getPopularProducts = async (req, res, next) => {
       };
     });
 
-    res.json({ products: formattedProducts });
+    res.json({ 
+      success: true,
+      data: formattedProducts
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get offers (products with a non-null discount)
+const getOffers = async (req, res, next) => {
+  try {
+    const { limit = 12, lang = 'en' } = req.query;
+
+    const products = await prisma.product.findMany({
+      where: { discount: { not: null } },
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        translations: true,
+        productImages: true,
+        store: { include: { translations: true } },
+        reviews: { select: { rate: true } }
+      }
+    });
+
+    const getImageUrl = require('../utils/getImageUrl');
+
+    const formatted = products.map(product => {
+      const translation = (product.translations || []).find(t => t.language === lang) || product.translations[0] || {};
+      const storeTranslation = (product.store?.translations || []).find(t => t.language === lang) || product.store?.translations[0] || {};
+
+      const ratings = product.reviews.map(r => parseInt(r.rate));
+      const avgRating = ratings.length > 0 ? ratings.reduce((a,b)=>a+b,0)/ratings.length : 0;
+
+      return {
+        id: product.id.toString(),
+        title: translation.title || 'No title',
+        image: getImageUrl(product.image),
+        images: product.productImages.map(img => getImageUrl(img.image)),
+        price: product.price,
+        discount: product.discount,
+        totalPrice: product.totalPrice,
+        rating: parseFloat(avgRating.toFixed(1)),
+        store: product.store ? { id: product.store.id.toString(), name: storeTranslation.name || 'Unknown', image: getImageUrl(product.store.image) } : null,
+      };
+    });
+
+    res.json({ success: true, data: formatted });
   } catch (error) {
     next(error);
   }
@@ -327,4 +446,5 @@ module.exports = {
   getProducts,
   getProductById,
   getPopularProducts,
+  getOffers,
 };
