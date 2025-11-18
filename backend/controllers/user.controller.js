@@ -82,15 +82,15 @@ const addAddress = async (req, res, next) => {
 // Update address
 const updateAddress = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { governateId, areaId, description, type, title } = req.body;
+      if (!governateId || !description) {
+        return res.status(400).json({ error: 'Governate and description are required' });
 
     const address = await prisma.locationUser.findFirst({
       where: {
         id: BigInt(id),
         userId: req.user.id,
       }
-    });
+       areaIdBig = areaId ? BigInt(areaId) : null;
 
     if (!address) {
       return res.status(404).json({ error: 'Address not found' });
@@ -100,7 +100,26 @@ const updateAddress = async (req, res, next) => {
     if (governateId) updateData.governateId = BigInt(governateId);
     if (areaId) updateData.areaId = BigInt(areaId);
     if (description) updateData.description = description;
+      // If areaId provided, verify it exists and belongs to governate
+      if (areaIdBig) {
+        const area = await prisma.category.findUnique({ where: { id: areaIdBig } });
+        if (!area) {
+          return res.status(404).json({ error: 'Area not found' });
+        }
+        if (area.governateId && String(area.governateId) !== String(govIdBig)) {
+          return res.status(400).json({ error: 'Area does not belong to the selected governate' });
+        }
+      }
     if (type) updateData.type = type;
+      // Build create data; include areaId only when provided
+      const createData = {
+        userId: req.user.id,
+        governateId: govIdBig,
+        description,
+        type,
+        title,
+      };
+      if (areaIdBig) createData.areaId = areaIdBig;
     if (title !== undefined) updateData.title = title;
 
     const updatedAddress = await prisma.locationUser.update({
