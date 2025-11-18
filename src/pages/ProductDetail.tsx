@@ -77,20 +77,20 @@ const ProductDetail = () => {
           setError("Product not found");
         }
 
-        if (reviewsRes.success) {
-          const raw = reviewsRes.reviews || reviewsRes.data || [];
-          const mapped = (raw || []).map((r: any) => ({
+        // Review API may return different shapes: { reviews: [...] } or { data: [...] } or directly the array
+        const rawReviews = (reviewsRes && (reviewsRes.reviews || reviewsRes.data)) || reviewsRes || [];
+        if (rawReviews && Array.isArray(rawReviews)) {
+          const mapped = rawReviews.map((r: any) => ({
             id: String(r.id),
-            userName: r.user?.name || (r.userName || 'User'),
-            userImage: r.user?.image || undefined,
-            rating: r.rating || 0,
-            // ProductReviews expects fields: title, titleAr, comment, commentAr, date
+            userName: r.userName || `${r.user?.fName || ''} ${r.user?.lName || ''}`.trim() || 'User',
+            userImage: r.userImage || r.user?.image || undefined,
+            rating: r.rating || r.rate || 0,
             title: r.title || r.summary || '',
             titleAr: r.titleAr || r.summaryAr || '',
-            comment: r.review || r.comment || '',
-            commentAr: r.reviewAr || r.commentAr || '',
+            comment: r.comment || r.review || '',
+            commentAr: r.commentAr || r.reviewAr || '',
             images: r.images || [],
-            date: r.createdAt || r.date,
+            date: r.date || r.createdAt,
             helpful: r.helpful || 0,
             notHelpful: r.notHelpful || 0,
             verified: r.verified !== undefined ? r.verified : true,
@@ -113,17 +113,18 @@ const ProductDetail = () => {
     if (!id) return;
     try {
       const reviewsRes = await reviewAPI.getProductReviews(id, { lang: language });
-      if (reviewsRes.success) {
-        const raw = reviewsRes.reviews || reviewsRes.data || [];
-        const mapped = (raw || []).map((r: any) => ({
+      const raw = (reviewsRes && (reviewsRes.reviews || reviewsRes.data)) || reviewsRes || [];
+      if (Array.isArray(raw)) {
+        const mapped = raw.map((r: any) => ({
           id: String(r.id),
-          userName: r.user?.name || (r.userName || 'User'),
-          userImage: r.user?.image || undefined,
-          rating: r.rating || 0,
+          userName: r.user?.fName ? `${r.user.fName} ${r.user.lName || ''}`.trim() : (r.userName || 'User'),
+          userImage: r.user?.image || r.userImage || undefined,
+          rating: r.rating || r.rate || 0,
           title: r.title || r.summary || '',
           titleAr: r.titleAr || r.summaryAr || '',
-          comment: r.review || r.comment || '',
-          commentAr: r.reviewAr || r.commentAr || '',
+          comment: r.comment || r.review || '',
+          commentAr: r.commentAr || r.reviewAr || '',
+          review: r.review || r.comment || '',
           images: r.images || [],
           date: r.createdAt || r.date,
           helpful: r.helpful || 0,
@@ -210,20 +211,25 @@ const ProductDetail = () => {
       });
       return;
     }
+    
+    // Add selected product to cart
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      quantity,
+      color: selectedColor || undefined,
+      size: selectedSize || undefined,
+      marketId: product.marketId,
+      storeId: product.storeId,
+    });
 
-    addToCart(
-      {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.image,
-        marketId: product.marketId,
-        storeId: product.storeId,
-        color: selectedColor,
-        size: selectedSize,
-      },
-      quantity
-    );
+    toast({
+      title: language === 'ar' ? 'تمت الإضافة' : 'Added to cart',
+      description: language === 'ar' ? 'تمت إضافة المنتج إلى السلة' : 'Product added to cart',
+      variant: 'default',
+    });
   };
 
   const handleWishlist = () => {

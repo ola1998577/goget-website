@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
-import { userAPI, orderAPI, productAPI, shippingAPI } from "@/lib/api";
+import { userAPI, orderAPI, productAPI, shippingAPI, marketAPI } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,9 @@ const Checkout = () => {
   const [shippingOptions, setShippingOptions] = useState<any[]>([]);
   const [selectedShippingOption, setSelectedShippingOption] = useState<string | null>(null);
   const [shippingMethod, setShippingMethod] = useState<'standard'|'express'>('standard');
-  const [newAddress, setNewAddress] = useState({ governateId: '', areaId: '', description: '', title: '' });
+  const [newAddress, setNewAddress] = useState({ governateId: '', areaId: '', description: '', title: '', type: 'home' });
+  const [governates, setGovernates] = useState<any[]>([]);
+  const [areas, setAreas] = useState<any[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -27,13 +29,22 @@ const Checkout = () => {
       navigate('/login');
       return;
     }
-    // load addresses and shipping options
+    // load addresses, shipping options and governates
     const load = async () => {
       try {
         const addrRes = await userAPI.getAddresses();
         if (addrRes && addrRes.addresses) setAddresses(addrRes.addresses);
         const shipRes = await shippingAPI.getShippingOptions();
         if (shipRes && shipRes.shippingOptions) setShippingOptions(shipRes.shippingOptions);
+        // load governates (markets)
+        try {
+          const govRes = await marketAPI.getMarkets({ lang: 'en' });
+          // marketAPI returns { success: true, data: [...] }
+          const g = (govRes && (govRes.data || govRes)) || [];
+          setGovernates(Array.isArray(g) ? g : []);
+        } catch (e) {
+          setGovernates([]);
+        }
       } catch (err) {
         // ignore
       }
@@ -42,8 +53,8 @@ const Checkout = () => {
   }, [isAuthenticated, navigate]);
 
   const handleAddAddress = async () => {
-    if (!newAddress.governateId || !newAddress.areaId || !newAddress.description) {
-      toast({ title: 'Missing fields', description: 'Please fill governate, area and description', variant: 'destructive' });
+    if (!newAddress.governateId || !newAddress.areaId || !newAddress.description || !newAddress.type) {
+      toast({ title: 'Missing fields', description: 'Please fill governate, area, type and description', variant: 'destructive' });
       return;
     }
     try {
@@ -52,9 +63,14 @@ const Checkout = () => {
         areaId: newAddress.areaId,
         description: newAddress.description,
         title: newAddress.title,
+        type: newAddress.type,
       });
       if (res && res.address) {
-        setAddresses(prev => [res.address, ...prev]);
+        // attach selected names so UI can show them immediately
+        const gov = governates.find(g => String(g.id) === String(newAddress.governateId));
+        const area = areas.find(a => String(a.id) === String(newAddress.areaId));
+        const enriched = { ...res.address, governateName: gov?.name || gov?.title || '', areaName: area?.title || area?.name || '' };
+        setAddresses(prev => [enriched, ...prev]);
         setNewAddress({ governateId: '', areaId: '', description: '', title: '' });
         toast({ title: 'Address added' });
       }
@@ -159,8 +175,41 @@ const Checkout = () => {
             <CardContent>
               <h2 className="font-semibold mb-3">Add New Address</h2>
               <div className="grid grid-cols-1 gap-2">
-                <Input placeholder="Governate ID" value={newAddress.governateId} onChange={(e)=>setNewAddress({...newAddress, governateId: e.target.value})} />
-                <Input placeholder="Area ID" value={newAddress.areaId} onChange={(e)=>setNewAddress({...newAddress, areaId: e.target.value})} />
+                <select value={newAddress.governateId} onChange={async (e) => {
+                  const govId = e.target.value;
+                  setNewAddress({...newAddress, governateId: govId, areaId: ''});
+                  // fetch areas (categories) for this governate
+                  if (govId) {
+                    try {
+                      const govRes = await marketAPI.getMarketById(govId, 'en');
+                      const cats = (govRes && (govRes.data?.categories || govRes.categories)) || (govRes.data || []);
+                      setAreas(Array.isArray(cats) ? cats : []);
+                    } catch (err) {
+                      setAreas([]);
+                    }
+                  } else {
+                    setAreas([]);
+                  }
+                }} className="border p-2 rounded bg-white text-black">
+                  <option value="">Select Governate</option>
+                  {governates.map(g => (
+                    <option key={g.id} value={g.id} className="text-black">{g.name || g.title}</option>
+                  ))}
+                </select>
+
+                <select value={newAddress.areaId} onChange={(e)=>setNewAddress({...newAddress, areaId: e.target.value})} className="border p-2 rounded bg-white text-black">
+                  <option value="">Select Area</option>
+                  {areas.map(a => (
+                    <option key={a.id} value={a.id} className="text-black">{a.title || a.name || a.nameAr}</option>
+                  ))}
+                </select>
+                
+                <select value={newAddress.type} onChange={(e)=>setNewAddress({...newAddress, type: e.target.value})} className="border p-2 rounded bg-white text-black">
+                  <option value="home">Home</option>
+                  <option value="hotel">Hotel</option>
+                  <option value="restaurant">Restaurant</option>
+                  <option value="work">Work</option>
+                </select>
                 <Input placeholder="Title (optional)" value={newAddress.title} onChange={(e)=>setNewAddress({...newAddress, title: e.target.value})} />
                 <Input placeholder="Description" value={newAddress.description} onChange={(e)=>setNewAddress({...newAddress, description: e.target.value})} />
                 <div className="flex gap-2">

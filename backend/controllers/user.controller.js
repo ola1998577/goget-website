@@ -23,25 +23,57 @@ const addAddress = async (req, res, next) => {
       return res.status(400).json({ error: 'Governate, area, and description are required' });
     }
 
-    const address = await prisma.locationUser.create({
-      data: {
-        userId: req.user.id,
-        governateId: BigInt(governateId),
-        areaId: BigInt(areaId),
-        description,
-        type,
-        title,
-      }
-    });
+    // Validate governateId and areaId exist in DB to avoid FK constraint errors
+    let govIdBig, areaIdBig;
+    try {
+      govIdBig = BigInt(governateId);
+      areaIdBig = BigInt(areaId);
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid governateId or areaId format' });
+    }
 
-    res.status(201).json({
-      message: 'Address added successfully',
-      address: {
-        id: address.id.toString(),
-        description: address.description,
-        type: address.type,
+    const governate = await prisma.governate.findUnique({ where: { id: govIdBig } });
+    if (!governate) {
+      return res.status(404).json({ error: 'Governate not found' });
+    }
+
+    // The "area" in this project is represented by categories linked to a governate.
+    // Verify the provided areaId exists and belongs to the given governate.
+    const area = await prisma.category.findUnique({ where: { id: areaIdBig } });
+    if (!area) {
+      return res.status(404).json({ error: 'Area not found' });
+    }
+    if (area.governateId && String(area.governateId) !== String(govIdBig)) {
+      return res.status(400).json({ error: 'Area does not belong to the selected governate' });
+    }
+
+    try {
+      const address = await prisma.locationUser.create({
+        data: {
+          userId: req.user.id,
+          governateId: govIdBig,
+          areaId: areaIdBig,
+          description,
+          type,
+          title,
+        }
+      });
+
+      res.status(201).json({
+        message: 'Address added successfully',
+        address: {
+          id: address.id.toString(),
+          description: address.description,
+          type: address.type,
+        }
+      });
+    } catch (err) {
+      // Translate common Prisma FK error to friendly message
+      if (err && err.code === 'P2003') {
+        return res.status(400).json({ error: 'Invalid areaId: foreign key constraint failed. Make sure the selected area exists.' });
       }
-    });
+      throw err;
+    }
   } catch (error) {
     next(error);
   }

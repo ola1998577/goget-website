@@ -139,12 +139,12 @@ export const ProductReviews = ({ reviews, averageRating, totalReviews }: Product
 
                   {/* Review Title */}
                   <h4 className="font-semibold text-lg">
-                    {language === 'ar' ? review.titleAr : review.title}
+                    {language === 'ar' ? (review.titleAr || '') : (review.title || '')}
                   </h4>
 
                   {/* Review Comment */}
                   <p className="text-muted-foreground">
-                    {language === 'ar' ? review.commentAr : review.comment}
+                    {language === 'ar' ? (review.commentAr || '') : (review.comment || '')}
                   </p>
 
                   {/* Review Images */}

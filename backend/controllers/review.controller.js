@@ -27,15 +27,21 @@ const getProductReviews = async (req, res, next) => {
       prisma.productReview.count({ where: { productId: BigInt(id) } }),
     ]);
 
+    // Standardized flattened review shape expected by frontend
     const formattedReviews = reviews.map(review => ({
       id: review.id.toString(),
-      user: {
-        id: review.user.id.toString(),
-        name: `${review.user.fName} ${review.user.lName}`,
-      },
+      userName: `${review.user.fName} ${review.user.lName}`,
+      userImage: null,
       rating: parseInt(review.rate),
-      review: review.review,
-      createdAt: review.createdAt,
+      title: review.title || '',
+      titleAr: review.titleAr || '',
+      comment: review.review || '',
+      commentAr: review.reviewAr || '',
+      images: review.images || [],
+      date: review.createdAt,
+      helpful: review.helpful || 0,
+      notHelpful: review.notHelpful || 0,
+      verified: true,
     }));
 
     res.json({

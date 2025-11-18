@@ -320,7 +320,7 @@ model LocationUser {
   id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   userId      BigInt    @map("user_id") @db.UnsignedBigInt
   governateId BigInt    @map("governate_id") @db.UnsignedBigInt
-  areaId      BigInt    @map("area_id") @db.UnsignedBigInt
+  areaId      BigInt?   @map("area_id") @db.UnsignedBigInt
   description String    @db.Text
   type        String    @default("home") @db.VarChar(255)
   title       String?   @db.VarChar(255)
