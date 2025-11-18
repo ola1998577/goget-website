@@ -77,6 +77,20 @@ const addReview = async (req, res, next) => {
       return res.status(400).json({ error: 'You have already reviewed this product' });
     }
 
+    // Check if user has ordered this product before allowing review
+    const hasOrdered = await prisma.order.findFirst({
+      where: {
+        userId: req.user.id,
+        orderProducts: {
+          some: { productId: BigInt(productId) }
+        }
+      }
+    });
+
+    if (!hasOrdered) {
+      return res.status(403).json({ error: 'You can only review products you have ordered' });
+    }
+
     const newReview = await prisma.productReview.create({
       data: {
         productId: BigInt(productId),

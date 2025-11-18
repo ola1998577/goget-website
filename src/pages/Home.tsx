@@ -9,7 +9,7 @@ import { StoreCard } from "@/components/StoreCard";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { WheelOfFortuneButton } from "@/components/WheelOfFortuneButton";
 import { AppDownload } from "@/components/AppDownload";
-import { productAPI, storeAPI, marketAPI } from "@/lib/api";
+import { productAPI, storeAPI, marketAPI, categoryAPI } from "@/lib/api";
 import { settingsAPI } from "@/lib/api";
 import { Product, Store as StoreType, Market } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +19,7 @@ const Home = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [stores, setStores] = useState<StoreType[]>([]);
   const [markets, setMarkets] = useState<Market[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -26,20 +27,23 @@ const Home = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
+
         const [productsRes, storesRes, marketsRes] = await Promise.all([
           productAPI.getPopularProducts(8, language),
           storeAPI.getStores({ limit: 6, lang: language }),
           marketAPI.getMarkets({ lang: language }),
         ]);
 
-        // fetch banners separately (hero)
+        // fetch banners and categories separately
         const bannersRes = await settingsAPI.getBanners();
+        const categoriesRes = await categoryAPI.getCategories(language);
 
         if (bannersRes && bannersRes.banners) setBanners(bannersRes.banners || []);
 
         if (productsRes.success) setProducts(productsRes.data || []);
         if (storesRes.success) setStores(storesRes.data || []);
         if (marketsRes.success) setMarkets(marketsRes.data || []);
+        if (categoriesRes && categoriesRes.categories) setCategories(categoriesRes.categories || []);
       } catch (error) {
         console.error("[v0] Error fetching home data:", error);
       } finally {
@@ -89,6 +93,41 @@ const Home = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {markets.map((market) => (
               <MarketCard key={market.id} market={market} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Categories Section */}
+      <section className="container mx-auto px-4 mb-16">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-3xl font-bold mb-2">{t("categories")}</h2>
+            <p className="text-muted-foreground">Browse popular categories</p>
+          </div>
+          <Link to="/categories">
+            <Button variant="outline">
+              View All
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+
+        {isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-lg" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {categories.map((cat) => (
+              <Link key={cat.id} to={`/category/${cat.id}`}>
+                <div className="p-4 border rounded-lg hover:border-primary hover:shadow-lg transition-all duration-300 text-center">
+                  {cat.image && <img src={cat.image} alt={cat.title} className="mx-auto h-24 mb-3 object-contain" />}
+                  <h3 className="font-semibold">{language === 'ar' ? cat.title : cat.title}</h3>
+                </div>
+              </Link>
             ))}
           </div>
         )}

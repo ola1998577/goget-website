@@ -12,9 +12,10 @@ import { toast } from "@/hooks/use-toast";
 interface ReviewFormProps {
   productId: string;
   productName: string;
+  onSubmitted?: () => void;
 }
 
-export const ReviewForm = ({ productId, productName }: ReviewFormProps) => {
+export const ReviewForm = ({ productId, productName, onSubmitted }: ReviewFormProps) => {
   const { language, t } = useLanguage();
   const { isAuthenticated, user } = useAuth();
   const [rating, setRating] = useState(0);
@@ -75,21 +76,39 @@ export const ReviewForm = ({ productId, productName }: ReviewFormProps) => {
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Backend expects { productId, rating, review }
+      const payload = {
+        productId,
+        rating,
+        review: `${title}\n\n${comment}`,
+      };
+
+      const res = await (await import('@/lib/api')).reviewAPI.addReview(payload as any);
+
       toast({
         title: language === 'ar' ? 'شكراً لك!' : 'Thank you!',
         description: language === 'ar' ? 'تم إضافة مراجعتك بنجاح' : 'Your review has been submitted successfully',
       });
-      
+
       // Reset form
       setRating(0);
       setTitle("");
       setComment("");
       setImages([]);
       setImagePreviews([]);
+
+      if (onSubmitted) onSubmitted();
+    } catch (err: any) {
+      const message = err?.message || (err?.error) || 'Failed to submit review';
+      toast({
+        title: language === 'ar' ? 'خطأ' : 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
       setIsSubmitting(false);
-    }, 1500);
+    }
   };
 
   if (!isAuthenticated) {

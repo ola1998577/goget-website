@@ -87,3 +87,98 @@ exports.getGovernateById = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get products for a governate (market)
+exports.getGovernateProducts = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = 'latest',
+      lang = 'en',
+    } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    // Build orderBy
+    let orderBy = {};
+    switch (sortBy) {
+      case 'price-asc':
+        orderBy = { price: 'asc' };
+        break;
+      case 'price-desc':
+        orderBy = { price: 'desc' };
+        break;
+      case 'popular':
+        orderBy = { orderCount: 'desc' };
+        break;
+      case 'latest':
+      default:
+        orderBy = { createdAt: 'desc' };
+        break;
+    }
+
+    // Find products where product's category.governateId == id
+    const where = {
+      category: {
+        is: { governateId: BigInt(id) }
+      }
+    };
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take,
+        orderBy,
+        include: {
+          translations: true,
+          productImages: true,
+          store: { include: { translations: true } },
+          reviews: { select: { rate: true } }
+        }
+      }),
+      prisma.product.count({ where })
+    ]);
+
+    const getImageUrl = require('../utils/getImageUrl');
+
+    const formatted = products.map(product => {
+      const translation = (product.translations || []).find(t => t.language === lang) || product.translations[0] || {};
+      const storeTranslation = (product.store?.translations || []).find(t => t.language === lang) || product.store?.translations[0] || {};
+
+      const ratings = product.reviews.map(r => parseInt(r.rate));
+      const avgRating = ratings.length > 0 ? ratings.reduce((a,b) => a + b, 0) / ratings.length : 0;
+
+      return {
+        id: product.id.toString(),
+        title: translation.title || 'No title',
+        name: translation.title || 'No title',
+        description: translation.description || '',
+        image: getImageUrl(product.image),
+        images: product.productImages.map(img => getImageUrl(img.image)),
+        price: product.price,
+        discount: product.discount,
+        totalPrice: product.totalPrice,
+        rating: parseFloat(avgRating.toFixed(1)),
+        reviewCount: product.reviews.length,
+        store: product.store ? { id: product.store.id.toString(), name: storeTranslation.name || 'Unknown', image: getImageUrl(product.store.image) } : null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: formatted,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

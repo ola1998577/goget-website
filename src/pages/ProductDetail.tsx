@@ -69,7 +69,21 @@ const ProductDetail = () => {
         }
 
         if (reviewsRes.success) {
-          setReviews(reviewsRes.data || []);
+          const mapped = (reviewsRes.reviews || reviewsRes.data || []).map((r: any) => ({
+            id: r.id,
+            productId: id,
+            userId: r.user?.id || '',
+            userName: r.user?.name || '',
+            userImage: undefined,
+            rating: r.rating || 0,
+            review: r.review || r.review || '',
+            images: [],
+            createdAt: r.createdAt,
+            helpful: 0,
+            notHelpful: 0,
+            verified: true,
+          }));
+          setReviews(mapped || []);
         }
       } catch (error) {
         console.error("[v0] Error fetching product:", error);
@@ -81,6 +95,33 @@ const ProductDetail = () => {
 
     fetchProductData();
   }, [id, language]);
+
+  // Fetch only reviews (for refresh)
+  const fetchReviews = async () => {
+    if (!id) return;
+    try {
+      const reviewsRes = await reviewAPI.getProductReviews(id, { lang: language });
+      if (reviewsRes.success) {
+        const mapped = (reviewsRes.reviews || reviewsRes.data || []).map((r: any) => ({
+          id: r.id,
+          productId: id,
+          userId: r.user?.id || '',
+          userName: r.user?.name || '',
+          userImage: undefined,
+          rating: r.rating || 0,
+          review: r.review || r.review || '',
+          images: [],
+          createdAt: r.createdAt,
+          helpful: 0,
+          notHelpful: 0,
+          verified: true,
+        }));
+        setReviews(mapped || []);
+      }
+    } catch (err) {
+      // ignore
+    }
+  };
 
   // Get available stock for selected variant
   const getAvailableStock = () => {
@@ -436,10 +477,11 @@ const ProductDetail = () => {
             />
           </div>
           <div>
-            <ReviewForm 
-              productId={product.id}
-              productName={name}
-            />
+              <ReviewForm 
+                productId={product.id}
+                productName={name}
+                onSubmitted={fetchReviews}
+              />
           </div>
         </div>
       </div>
