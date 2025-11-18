@@ -18,12 +18,25 @@ exports.getGovernates = async (req, res, next) => {
     // Format data to include translated name
     const formattedGovernates = governates.map(gov => ({
       id: gov.id?.toString(),
-      name: gov.translations[0]?.name || 'N/A',
+      // include both language fields
+      name: (gov.translations || []).find(t => t.locale === 'en')?.name || gov.translations[0]?.name || 'N/A',
+      nameAr: (gov.translations || []).find(t => t.locale === 'ar')?.name || gov.translations[0]?.name || 'N/A',
       status: gov.status,
       createdAt: gov.createdAt,
       updatedAt: gov.updatedAt,
       categoriesCount: gov._count?.categories || 0,
     }));
+
+    // attach an image for each governate: try to use the first category image if exists
+    const getImageUrl = require('../utils/getImageUrl');
+    for (let fg of formattedGovernates) {
+      try {
+        const firstCat = await prisma.category.findFirst({ where: { governateId: BigInt(fg.id) }, orderBy: { id: 'asc' } });
+        fg.image = firstCat ? getImageUrl(firstCat.image) : '/placeholder.svg';
+      } catch (e) {
+        fg.image = '/placeholder.svg';
+      }
+    }
 
     res.json({
       success: true,
@@ -58,7 +71,8 @@ exports.getGovernateById = async (req, res, next) => {
 
     const formatted = {
       id: governate.id?.toString(),
-      name: governate.translations[0]?.name || 'N/A',
+        name: (governate.translations || []).find(t => t.locale === 'en')?.name || governate.translations[0]?.name || 'N/A',
+        nameAr: (governate.translations || []).find(t => t.locale === 'ar')?.name || governate.translations[0]?.name || 'N/A',
       status: governate.status,
       createdAt: governate.createdAt,
       updatedAt: governate.updatedAt,
@@ -68,16 +82,20 @@ exports.getGovernateById = async (req, res, next) => {
     // include categories for this governate (simple list)
     const categories = await prisma.category.findMany({
       where: { governateId: governate.id },
-      include: { translations: { where: { language: lang } } },
+      include: { translations: true },
       orderBy: { id: 'asc' }
     });
 
     const getImageUrl = require('../utils/getImageUrl');
     formatted.categories = categories.map(c => ({
       id: c.id.toString(),
-      title: c.translations[0]?.title || '',
+      title: (c.translations || []).find(t => t.language === lang)?.title || (c.translations[0]?.title || ''),
+      titleAr: (c.translations || []).find(t => t.language === 'ar')?.title || (c.translations[0]?.title || ''),
       image: getImageUrl(c.image),
     }));
+
+    // set a representative image for this governate (first category image or fallback)
+    formatted.image = formatted.categories.length > 0 ? formatted.categories[0].image : '/placeholder.svg';
 
     res.json({
       success: true,

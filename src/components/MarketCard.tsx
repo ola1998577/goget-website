@@ -20,7 +20,7 @@ export const MarketCard = ({ market }: MarketCardProps) => {
       <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300">
         <div className="relative overflow-hidden h-48">
           <img
-            src={market.image}
+            src={market.image || '/placeholder.svg'}
             alt={name}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
           />

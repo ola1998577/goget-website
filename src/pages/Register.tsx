@@ -26,9 +26,15 @@ const Register = () => {
       return;
     }
     setLoading(true);
-    await register(fName, lName, email, password, phone);
-    setLoading(false);
-    navigate("/");
+    try {
+      await register(fName, lName, email, password, phone);
+      // After successful registration, navigate to OTP verification page
+      navigate('/register-otp', { state: { name: `${fName} ${lName}`, email, phone } });
+    } catch (err) {
+      // register() already shows toast; keep on page
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -109,17 +115,6 @@ const Register = () => {
                 {loading ? "..." : t("signUp")}
               </Button>
             </form>
-            <div className="mt-6 pt-6 border-t">
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <span>أو</span>
-                <Link 
-                  to="/register-otp" 
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  التسجيل برمز OTP
-                </Link>
-              </div>
-            </div>
 
             <p className="text-center mt-6 text-muted-foreground">
               {t("alreadyHaveAccount")}{" "}

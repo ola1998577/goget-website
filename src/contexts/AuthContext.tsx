@@ -45,19 +45,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const response: AuthResponse = await authAPI.login({ email, password });
-      
-      if (response.success && response.token) {
+      const response: any = await authAPI.login({ email, password });
+      if (response.token) {
         localStorage.setItem("authToken", response.token);
         setUser(response.user);
         toast({ 
           title: "Welcome back!", 
-          description: `Logged in as ${response.user.fName}` 
+          description: `Logged in as ${response.user?.fName || ''}` 
         });
+      } else if (response.needOTP) {
+        // Special error for OTP required
+        const err: any = new Error("OTP required");
+        err.payload = { requiresOTP: true, phone: response.phone };
+        throw err;
       } else {
         throw new Error(response.message || "Login failed");
       }
     } catch (error: any) {
+      if (error.payload && error.payload.requiresOTP) {
+        // Don't show toast, let page handle navigation
+        throw error;
+      }
       toast({ 
         title: "Login failed", 
         description: error.message || "Invalid email or password",

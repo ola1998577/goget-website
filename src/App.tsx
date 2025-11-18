@@ -10,6 +10,7 @@ import { WishlistProvider } from "@/contexts/WishlistContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+
 import Home from "./pages/Home";
 import Markets from "./pages/Markets";
 import MarketDetail from "./pages/MarketDetail";
@@ -24,13 +25,14 @@ import Offers from "./pages/Offers";
 import OfferDetail from "./pages/OfferDetail";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import LoginOTP from "./pages/LoginOTP";
 import RegisterOTP from "./pages/RegisterOTP";
+import LoginOTP from "./pages/LoginOTP";
 import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
+import Checkout from "./pages/Checkout";
 
 const queryClient = new QueryClient();
 
@@ -63,9 +65,10 @@ const App = () => (
                         <Route path="/offer/:id" element={<OfferDetail />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
-                        <Route path="/login-otp" element={<LoginOTP />} />
                         <Route path="/register-otp" element={<RegisterOTP />} />
+                        <Route path="/login-otp" element={<LoginOTP />} />
                         <Route path="/profile" element={<Profile />} />
+                        <Route path="/checkout" element={<Checkout />} />
                         <Route path="/orders" element={<Orders />} />
                         <Route path="/about" element={<About />} />
                         <Route path="/contact" element={<Contact />} />

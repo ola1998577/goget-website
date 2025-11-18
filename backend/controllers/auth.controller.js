@@ -19,7 +19,7 @@ function safeJson(obj) {
     typeof value === 'bigint' ? value.toString() : value
   ));
 }
-// Register new user
+// Register new user (no OTP, immediate account creation)
 const register = async (req, res, next) => {
   try {
     // Validate input
@@ -36,13 +36,9 @@ const register = async (req, res, next) => {
         OR: [{ email }, { phone }]
       }
     });
-
     if (existingUser) {
       return res.status(400).json({ error: 'User with this email or phone already exists' });
     }
-
-    // Generate OTP
-    const otp = generateOTP();
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -56,7 +52,10 @@ const register = async (req, res, next) => {
       }
     });
 
-    // Create user
+    // Generate OTP
+    const otp = generateOTP();
+
+    // Create user (unverified)
     const user = await prisma.user.create({
       data: {
         fName,
@@ -64,9 +63,9 @@ const register = async (req, res, next) => {
         email,
         password: hashedPassword,
         phone,
-        otp,
         tokenId: tokenRecord.id,
         isVerify: false,
+        otp,
       },
       select: {
         id: true,
@@ -74,30 +73,29 @@ const register = async (req, res, next) => {
         lName: true,
         email: true,
         phone: true,
-        otp: true,
         isVerify: true,
       }
     });
 
-    // TODO: Send OTP via SMS/Email (implement based on your provider)
+    // TODO: Send OTP via SMS/Email
     console.log(`OTP for ${phone}: ${otp}`);
 
-   res.status(201).json(safeJson({
-  message: 'User registered successfully. Please verify OTP.',
-  user: {
-    id: user.id.toString(), // 🔹 هنا التحويل
-    name: `${user.fName} ${user.lName}`,
-    email: user.email,
-    phone: user.phone,
-  },
-  otp: process.env.NODE_ENV === 'development' ? otp : undefined, // Only in dev
-  } ));
+    res.status(201).json(safeJson({
+      message: 'User registered. Please verify OTP.',
+      user: {
+        id: user.id.toString(),
+        name: `${user.fName} ${user.lName}`,
+        email: user.email,
+        phone: user.phone,
+        isVerify: user.isVerify,
+      },
+    }));
   } catch (error) {
     next(error);
   }
 };
 
-// Login user
+// Login user (no OTP, immediate access)
 const login = async (req, res, next) => {
   try {
     // Validate input
@@ -108,9 +106,14 @@ const login = async (req, res, next) => {
 
     const { email, password } = req.body;
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // Find user (by email or phone)
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { phone: email }, // allow login by phone as well
+        ]
+      },
       include: { token: true }
     });
 
@@ -124,22 +127,17 @@ const login = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Check if user is verified
     if (!user.isVerify) {
-      // Generate new OTP
+      // Not verified, require OTP
+      // Generate new OTP and store
       const otp = generateOTP();
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { otp }
-      });
-
+      await prisma.user.update({ where: { id: user.id }, data: { otp } });
+      // TODO: Send OTP via SMS/Email
       console.log(`OTP for ${user.phone}: ${otp}`);
-
       return res.status(403).json({
-        error: 'Please verify your account first',
-        requiresOTP: true,
+        error: 'Account not verified. OTP sent.',
         phone: user.phone,
-        otp: process.env.NODE_ENV === 'development' ? otp : undefined,
+        needOTP: true
       });
     }
 
@@ -170,63 +168,29 @@ const login = async (req, res, next) => {
   }
 };
 
+
 // Verify OTP
 const verifyOTP = async (req, res, next) => {
   try {
-    // Validate input
     const { error } = verifyOTPSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
-
     const { phone, otp } = req.body;
-
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { phone },
-      include: { token: true }
-    });
-
+    const user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-
-    // Verify OTP
+    if (user.isVerify) {
+      return res.status(400).json({ error: 'Account already verified' });
+    }
     if (user.otp !== otp) {
       return res.status(400).json({ error: 'Invalid OTP' });
     }
-
-    // Update user verification status
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        isVerify: true,
-        otp: null,
-      }
-    });
-
-    // Update token login status
-    if (user.token) {
-      await prisma.token.update({
-        where: { id: user.token.id },
-        data: { islogin: true }
-      });
-    }
-
+    await prisma.user.update({ where: { id: user.id }, data: { isVerify: true, otp: null } });
     // Generate JWT
     const token = generateToken(user.id);
-
-    res.json({
-      message: 'Account verified successfully',
-      token,
-      user: {
-        id: user.id,
-        name: `${user.fName} ${user.lName}`,
-        email: user.email,
-        phone: user.phone,
-        points: parseInt(user.point),
-      }
-    });
+    res.json({ message: 'Account verified successfully', token });
   } catch (error) {
     next(error);
   }
@@ -235,41 +199,42 @@ const verifyOTP = async (req, res, next) => {
 // Resend OTP
 const resendOTP = async (req, res, next) => {
   try {
-    // Validate input
     const { error } = resendOTPSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
-
     const { phone } = req.body;
-
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { phone }
-    });
-
+    const user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-
     if (user.isVerify) {
       return res.status(400).json({ error: 'Account already verified' });
     }
-
     // Generate new OTP
     const otp = generateOTP();
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { otp }
-    });
-
+    await prisma.user.update({ where: { id: user.id }, data: { otp } });
     // TODO: Send OTP via SMS/Email
     console.log(`OTP for ${phone}: ${otp}`);
+    res.json({ message: 'OTP sent successfully', otp: process.env.NODE_ENV === 'development' ? otp : undefined });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    res.json({
-      message: 'OTP sent successfully',
-      otp: process.env.NODE_ENV === 'development' ? otp : undefined,
-    });
+// Cancel registration (delete unverified user)
+const cancelRegistration = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (user.isVerify) {
+      return res.status(400).json({ error: 'Account already verified' });
+    }
+    await prisma.user.delete({ where: { id: user.id } });
+    res.json({ message: 'Registration cancelled and user deleted' });
   } catch (error) {
     next(error);
   }
@@ -369,6 +334,7 @@ module.exports = {
   login,
   verifyOTP,
   resendOTP,
+  cancelRegistration,
   getProfile,
   updateProfile,
   logout,

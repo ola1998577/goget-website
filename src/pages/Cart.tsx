@@ -54,45 +54,8 @@ const Cart = () => {
     }
 
     if (items.length === 0) return;
-
-    try {
-      setIsSubmitting(true);
-      // Prepare order data from cart
-      const orderData = {
-        items: items.map(item => ({
-          productId: item.id,
-          quantity: item.quantity,
-          color: item.color,
-          size: item.size,
-        })),
-        totalPrice: totalPrice - discount,
-        promoCode: promoCode || undefined,
-        discount: discount || undefined,
-        notes: notes || undefined,
-      };
-
-      const response = await orderAPI.createOrder(orderData);
-      
-      if (response.success) {
-        clearCart();
-        toast({ 
-          title: "Order placed successfully!", 
-          description: `Order ID: ${response.data.id}` 
-        });
-        navigate("/orders");
-      } else {
-        throw new Error(response.message || "Failed to place order");
-      }
-    } catch (error: any) {
-      console.error("[v0] Checkout error:", error);
-      toast({ 
-        title: "Checkout failed", 
-        description: error.message || "Please try again",
-        variant: "destructive" 
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Navigate to checkout page to select address and shipping
+    navigate('/checkout');
   };
 
   if (items.length === 0) {

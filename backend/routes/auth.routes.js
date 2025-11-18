@@ -4,10 +4,13 @@ const authController = require('../controllers/auth.controller');
 const { auth } = require('../middlewares/auth');
 
 // Public routes
+
+
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/verify-otp', authController.verifyOTP);
 router.post('/resend-otp', authController.resendOTP);
+router.post('/cancel-registration', authController.cancelRegistration);
 
 // Protected routes
 router.get('/profile', auth, authController.getProfile);

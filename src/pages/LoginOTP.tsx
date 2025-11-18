@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 
 const LoginOTP = () => {
   const { t } = useLanguage();
-  const { login } = useAuth();
+  const { login, refreshUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { email, password, from2FA } = location.state || {};
@@ -51,17 +51,23 @@ const LoginOTP = () => {
 
   const handleVerifyOTP = async (otp: string) => {
     setLoading(true);
-
-    // Simulate OTP verification
-    setTimeout(async () => {
-      await login(email, password);
-      toast({
-        title: "تم التحقق بنجاح",
-        description: "مرحباً بك في GoGet - تم تسجيل الدخول بأمان",
-      });
+    try {
+      const api = (await import('@/lib/api')).default;
+      const res = await api.auth.verifyOTP({ phone: (location.state && (location.state as any).phone) || '', otp });
+      if (res && res.token) {
+        localStorage.setItem('authToken', res.token);
+        // refresh auth context
+        await refreshUser();
+        toast({ title: 'تم التحقق بنجاح', description: 'مرحباً بك في GoGet - تم تسجيل الدخول بأمان' });
+        navigate('/');
+      } else {
+        toast({ title: 'خطأ', description: res.message || 'Verification failed', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'فشل التحقق', description: err.message || 'Invalid OTP', variant: 'destructive' });
+    } finally {
       setLoading(false);
-      navigate("/");
-    }, 1500);
+    }
   };
 
   const handleResendOTP = () => {
@@ -116,12 +122,12 @@ const LoginOTP = () => {
               <div className="space-y-4">
                 <Label className="text-center block">أدخل رمز التحقق</Label>
                 <OTPInput 
-                  length={6} 
+                  length={4} 
                   onComplete={handleVerifyOTP}
                   loading={loading}
                 />
                 <p className="text-xs text-muted-foreground text-center">
-                  رمز مكون من 6 أرقام
+                  رمز مكون من 4 أرقام
                 </p>
               </div>
 

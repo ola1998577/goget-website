@@ -43,7 +43,7 @@ const Home = () => {
         if (productsRes.success) setProducts(productsRes.data || []);
         if (storesRes.success) setStores(storesRes.data || []);
         if (marketsRes.success) setMarkets(marketsRes.data || []);
-        if (categoriesRes && categoriesRes.categories) setCategories(categoriesRes.categories || []);
+        if (categoriesRes && categoriesRes.success) setCategories(categoriesRes.data || []);
       } catch (error) {
         console.error("[v0] Error fetching home data:", error);
       } finally {
@@ -124,8 +124,8 @@ const Home = () => {
             {categories.map((cat) => (
               <Link key={cat.id} to={`/category/${cat.id}`}>
                 <div className="p-4 border rounded-lg hover:border-primary hover:shadow-lg transition-all duration-300 text-center">
-                  {cat.image && <img src={cat.image} alt={cat.title} className="mx-auto h-24 mb-3 object-contain" />}
-                  <h3 className="font-semibold">{language === 'ar' ? cat.title : cat.title}</h3>
+                  {cat.image && <img src={cat.image} alt={cat.name || cat.title} className="mx-auto h-24 mb-3 object-contain" />}
+                  <h3 className="font-semibold">{language === 'ar' ? (cat.nameAr || cat.name) : (cat.name || cat.nameAr)}</h3>
                 </div>
               </Link>
             ))}

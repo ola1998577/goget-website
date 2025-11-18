@@ -14,19 +14,23 @@ const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [require2FA, setRequire2FA] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    if (require2FA) {
-      // Navigate to OTP verification for 2FA
-      navigate("/login-otp", { state: { email, password, from2FA: true } });
-    } else {
+    try {
       await login(email, password);
       navigate("/");
+    } catch (err: any) {
+      // If server indicates OTP required, navigate to OTP page with server-provided phone
+      if (err?.payload?.requiresOTP) {
+        const phone = err.payload.phone || '';
+        navigate('/login-otp', { state: { email, password, from2FA: true, phone } });
+        return;
+      }
+      // Otherwise error already shown by context
     }
     setLoading(false);
   };
@@ -61,19 +65,6 @@ const Login = () => {
                 />
               </div>
               
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <Checkbox 
-                  id="2fa" 
-                  checked={require2FA}
-                  onCheckedChange={(checked) => setRequire2FA(checked as boolean)}
-                />
-                <Label 
-                  htmlFor="2fa" 
-                  className="text-sm font-normal cursor-pointer"
-                >
-                  تفعيل التحقق بخطوتين (OTP) للحماية الإضافية
-                </Label>
-              </div>
 
               <Button
                 type="submit"

@@ -51,18 +51,7 @@ export const HeroCarousel = ({ banners }: { banners?: Array<{ id: string; image:
                       />
                       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent"></div>
                     </div>
-                    <div className="relative z-10 h-full flex items-center py-16 px-8 md:px-16">
-                      <div className="max-w-2xl text-white">
-                        {/* When banners are driven by admin, they may not carry titles/translations.
-                            Keep the overlay minimal: CTA button to markets/products/categories. */}
-                        <Link to={slide.link}>
-                          <Button size="lg" className="shadow-xl bg-primary hover:bg-primary-dark">
-                            {language === 'ar' ? 'استكشف' : 'Explore'}
-                            <ArrowRight className={`h-5 w-5 ${language === 'ar' ? 'mr-2' : 'ml-2'}`} />
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
+                  
                   </div>
                 </CardContent>
               </Card>

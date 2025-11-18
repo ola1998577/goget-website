@@ -17,6 +17,7 @@ const Categories = () => {
       try {
         setIsLoading(true);
         const response = await categoryAPI.getCategories(language);
+        console.log("Categories response:", response);
         if (response.success) {
           setCategories(response.data || []);
         }
@@ -39,37 +40,25 @@ const Categories = () => {
         </p>
       </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {[...Array(8)].map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-lg" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {categories.map((category) => {
-            const Icon = (Icons as any)[category.icon] || Icons.Package;
-            const name = language === "ar" ? category.nameAr : category.name;
-            const description = language === "ar" ? category.descriptionAr : category.description;
-
-            return (
-              <Link key={category.id} to={`/category/${category.id}`}>
-                <Card className="group hover:shadow-lg hover:border-primary transition-all duration-300 h-full">
-                  <CardContent className="p-6 text-center">
-                    <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                      <Icon className="h-8 w-8 text-primary" />
-                    </div>
-                    <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
-                      {name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">{description}</p>
-                  </CardContent>
-                </Card>
+    
+        {isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-lg" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {categories.map((cat) => (
+              <Link key={cat.id} to={`/category/${cat.id}`}>
+                <div className="p-4 border rounded-lg hover:border-primary hover:shadow-lg transition-all duration-300 text-center">
+                  {cat.image && <img src={cat.image} alt={cat.title} className="mx-auto h-24 mb-3 object-contain" />}
+                  <h3 className="font-semibold">{language === 'ar' ? cat.title : cat.title}</h3>
+                </div>
               </Link>
-            );
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
     </div>
   );
 };

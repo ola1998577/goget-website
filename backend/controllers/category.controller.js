@@ -32,27 +32,30 @@ const getCategories = async (req, res, next) => {
       orderBy: { id: 'asc' }
     });
 
+    const getImageUrl = require('../utils/getImageUrl');
     const formattedCategories = categories.map(category => {
       const translation = category.translations[0] || {};
-      const getImageUrl = require('../utils/getImageUrl');
       
       return {
         id: category.id.toString(),
-        title: translation.title || 'No title',
+        // bilingual fields
+        name: (category.translations || []).find(t => t.language === 'en')?.title || translation.title || 'No title',
+        nameAr: (category.translations || []).find(t => t.language === 'ar')?.title || translation.title || 'No title',
         image: getImageUrl(category.image),
         productCount: category._count.products,
         children: category.children.map(child => {
           const childTranslation = child.translations[0] || {};
           return {
             id: child.id.toString(),
-            title: childTranslation.title || 'No title',
+            name: (child.translations || []).find(t => t.language === 'en')?.title || childTranslation.title || 'No title',
+            nameAr: (child.translations || []).find(t => t.language === 'ar')?.title || childTranslation.title || 'No title',
             image: getImageUrl(child.image),
           };
         })
       };
     });
 
-    res.json({ categories: formattedCategories });
+    res.json({ success: true, data: formattedCategories });
   } catch (error) {
     next(error);
   }

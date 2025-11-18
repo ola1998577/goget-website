@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,8 @@ import { toast } from "@/hooks/use-toast";
 
 const RegisterOTP = () => {
   const { t } = useLanguage();
-  const { register } = useAuth();
+  const { register, refreshUser } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [step, setStep] = useState<"info" | "otp">("info");
   const [name, setName] = useState("");
@@ -21,20 +22,39 @@ const RegisterOTP = () => {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
+  // If navigated here from Register page, prefill info and go to OTP step
+  useEffect(() => {
+    const state: any = (location && (location as any).state) || {};
+    if (state && (state.phone || state.email)) {
+      if (state.name) setName(state.name);
+      if (state.email) setEmail(state.email);
+      if (state.phone) setPhone(state.phone);
+      // jump to otp step and start a countdown
+      setStep('otp');
+      setCountdown(60);
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [location]);
+
   const handleSubmitInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    // Simulate sending OTP
-    setTimeout(() => {
-      toast({
-        title: "تم إرسال الرمز",
-        description: `تم إرسال رمز التحقق إلى ${phone}`,
-      });
-      setStep("otp");
+    try {
+      // Call backend registration to create user and send OTP
+      await register(name, '', email, 'otp-temp-password', phone);
+      toast({ title: 'تم إرسال الرمز', description: `تم إرسال رمز التحقق إلى ${phone}` });
+      setStep('otp');
       setCountdown(60);
-      setLoading(false);
-
       // Start countdown
       const interval = setInterval(() => {
         setCountdown((prev) => {
@@ -45,22 +65,33 @@ const RegisterOTP = () => {
           return prev - 1;
         });
       }, 1000);
-    }, 1000);
+    } catch (err) {
+      // register() already shows toast
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVerifyOTP = async (otp: string) => {
     setLoading(true);
-
-    // Simulate OTP verification and registration
-    setTimeout(async () => {
-      await register(name, email, "otp-verified", phone);
-      toast({
-        title: "تم التسجيل بنجاح",
-        description: "مرحباً بك في GoGet",
-      });
+    try {
+      // Call verify OTP endpoint
+      const res = await (await import('@/lib/api')).default.auth.verifyOTP({ phone, otp });
+      // API returns token on success; store and refresh user
+      if (res && res.token) {
+        localStorage.setItem('authToken', res.token);
+        // refresh user data in context
+        await refreshUser();
+        toast({ title: 'تم التحقق بنجاح', description: 'مرحباً بك في GoGet' });
+        navigate('/');
+      } else {
+        toast({ title: 'خطأ', description: res.message || 'Verification failed', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'فشل التحقق', description: err.message || 'Invalid OTP', variant: 'destructive' });
+    } finally {
       setLoading(false);
-      navigate("/");
-    }, 1500);
+    }
   };
 
   const handleResendOTP = () => {
@@ -159,12 +190,12 @@ const RegisterOTP = () => {
                 <div className="space-y-4">
                   <Label className="text-center block">أدخل رمز التحقق</Label>
                   <OTPInput 
-                    length={6} 
+                    length={4} 
                     onComplete={handleVerifyOTP}
                     loading={loading}
                   />
                   <p className="text-xs text-muted-foreground text-center">
-                    رمز مكون من 6 أرقام
+                    رمز مكون من 4 أرقام
                   </p>
                 </div>
 
@@ -189,17 +220,41 @@ const RegisterOTP = () => {
                       : "إعادة إرسال الرمز"}
                   </button>
                   
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep("info");
-                      setCountdown(0);
-                    }}
-                    className="text-sm text-muted-foreground hover:text-primary block mx-auto"
-                    disabled={loading}
-                  >
-                    تعديل البيانات
-                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep('info');
+                        setCountdown(0);
+                      }}
+                      className="text-sm text-muted-foreground hover:text-primary"
+                      disabled={loading}
+                    >
+                      تعديل البيانات
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        // Cancel registration: call backend to remove unverified user if exists
+                        try {
+                          setLoading(true);
+                          const api = (await import('@/lib/api')).default;
+                          await api.auth.cancelRegistration({ phone });
+                          toast({ title: 'تم الإلغاء', description: 'تم إلغاء عملية التسجيل' });
+                          navigate('/login');
+                        } catch (err: any) {
+                          toast({ title: 'فشل الإلغاء', description: err.message || 'Could not cancel registration', variant: 'destructive' });
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      className="text-sm text-destructive hover:underline"
+                      disabled={loading}
+                    >
+                      إلغاء التسجيل
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

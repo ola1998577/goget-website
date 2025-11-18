@@ -270,6 +270,17 @@ const createOrder = async (req, res, next) => {
       });
     }
 
+    // Credit points to user: simple rule = floor(amount) points
+    try {
+      const existingUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { point: true } });
+      const currentPoints = parseInt(existingUser?.point || '0');
+      const pointsToAdd = Math.floor(amount || 0);
+      const newPoints = currentPoints + pointsToAdd;
+      await prisma.user.update({ where: { id: req.user.id }, data: { point: newPoints.toString() } });
+    } catch (e) {
+      console.error('Failed to credit points for order', e);
+    }
+
     res.status(201).json({
       message: 'Order created successfully',
       order: {

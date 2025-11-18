@@ -21,7 +21,10 @@ const handleResponse = async (response: Response) => {
   const data = await response.json();
   
   if (!response.ok) {
-    throw new Error(data.message || data.error || 'Request failed');
+    const err: any = new Error(data.message || data.error || 'Request failed');
+    // attach parsed payload so callers can react to server-provided flags
+    err.payload = data;
+    throw err;
   }
   
   return data;
@@ -77,6 +80,12 @@ export const authAPI = {
       body: JSON.stringify(data),
     }),
 
+  cancelRegistration: (data: { phone: string }) =>
+    apiRequest('/auth/cancel-registration', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getProfile: () => apiRequest('/auth/profile'),
 
   updateProfile: (data: any) =>
@@ -103,6 +112,11 @@ export const productAPI = {
 
   getPopularProducts: (limit = 10, lang = 'en') =>
     apiRequest(`/products/popular?limit=${limit}&lang=${lang}`),
+  
+  getOffers: (params: any) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/products/offers?${queryString}`);
+  },
 };
 
 // Category APIs

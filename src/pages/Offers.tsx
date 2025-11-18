@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination } from "@/components/Pagination";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { offers } from "@/data/offers";
+import api from "@/lib/api";
 
 const ITEMS_PER_PAGE = 9;
 
@@ -17,6 +17,9 @@ const Offers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("latest");
+  const [offers, setOffers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filteredOffers = useMemo(() => {
     let filtered = [...offers];
@@ -44,6 +47,25 @@ const Offers = () => {
 
     return filtered;
   }, [searchQuery, sortBy]);
+
+  useEffect(() => {
+    const fetchOffers = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.product.getOffers({ limit: 100, lang: language });
+        // API might return { success: true, data: [...] } or the array directly
+        const data = res?.data ?? res;
+        setOffers(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load offers');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOffers();
+  }, [language]);
 
   // Pagination
   const totalPages = Math.ceil(filteredOffers.length / ITEMS_PER_PAGE);
@@ -122,12 +144,28 @@ const Offers = () => {
       </div>
 
       {/* Offers Grid */}
+      {loading && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground text-lg">{language === 'ar' ? 'جارٍ تحميل العروض...' : 'Loading offers...'}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="text-center py-12">
+          <p className="text-destructive text-lg">{error}</p>
+        </div>
+      )}
       {currentOffers.length > 0 ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentOffers.map((offer) => {
-              const title = language === "ar" ? offer.titleAr : offer.title;
-              const description = language === "ar" ? offer.descriptionAr : offer.description;
+              const title = language === "ar"
+                ? (offer.titleAr || offer.nameAr || offer.translations?.[0]?.titleAr)
+                : (offer.title || offer.name || offer.translations?.[0]?.title);
+
+              const description = language === "ar"
+                ? (offer.descriptionAr || offer.shortDescriptionAr || offer.translations?.[0]?.descriptionAr)
+                : (offer.description || offer.shortDescription || offer.translations?.[0]?.description);
               const daysLeft = Math.ceil(
                 (new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
               );
