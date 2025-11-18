@@ -33,6 +33,15 @@ const ProductDetail = () => {
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedSize, setSelectedSize] = useState<string>("");
 
+  // Auto-advance images every 3 seconds
+  useEffect(() => {
+    if (!product || !product.images || product.images.length <= 1) return;
+    const interval = setInterval(() => {
+      setSelectedImage((prev) => (prev + 1) % product.images.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [product]);
+
   useEffect(() => {
     const fetchProductData = async () => {
       if (!id) return;
@@ -69,19 +78,22 @@ const ProductDetail = () => {
         }
 
         if (reviewsRes.success) {
-          const mapped = (reviewsRes.reviews || reviewsRes.data || []).map((r: any) => ({
-            id: r.id,
-            productId: id,
-            userId: r.user?.id || '',
-            userName: r.user?.name || '',
-            userImage: undefined,
+          const raw = reviewsRes.reviews || reviewsRes.data || [];
+          const mapped = (raw || []).map((r: any) => ({
+            id: String(r.id),
+            userName: r.user?.name || (r.userName || 'User'),
+            userImage: r.user?.image || undefined,
             rating: r.rating || 0,
-            review: r.review || r.review || '',
-            images: [],
-            createdAt: r.createdAt,
-            helpful: 0,
-            notHelpful: 0,
-            verified: true,
+            // ProductReviews expects fields: title, titleAr, comment, commentAr, date
+            title: r.title || r.summary || '',
+            titleAr: r.titleAr || r.summaryAr || '',
+            comment: r.review || r.comment || '',
+            commentAr: r.reviewAr || r.commentAr || '',
+            images: r.images || [],
+            date: r.createdAt || r.date,
+            helpful: r.helpful || 0,
+            notHelpful: r.notHelpful || 0,
+            verified: r.verified !== undefined ? r.verified : true,
           }));
           setReviews(mapped || []);
         }
@@ -102,19 +114,21 @@ const ProductDetail = () => {
     try {
       const reviewsRes = await reviewAPI.getProductReviews(id, { lang: language });
       if (reviewsRes.success) {
-        const mapped = (reviewsRes.reviews || reviewsRes.data || []).map((r: any) => ({
-          id: r.id,
-          productId: id,
-          userId: r.user?.id || '',
-          userName: r.user?.name || '',
-          userImage: undefined,
+        const raw = reviewsRes.reviews || reviewsRes.data || [];
+        const mapped = (raw || []).map((r: any) => ({
+          id: String(r.id),
+          userName: r.user?.name || (r.userName || 'User'),
+          userImage: r.user?.image || undefined,
           rating: r.rating || 0,
-          review: r.review || r.review || '',
-          images: [],
-          createdAt: r.createdAt,
-          helpful: 0,
-          notHelpful: 0,
-          verified: true,
+          title: r.title || r.summary || '',
+          titleAr: r.titleAr || r.summaryAr || '',
+          comment: r.review || r.comment || '',
+          commentAr: r.reviewAr || r.commentAr || '',
+          images: r.images || [],
+          date: r.createdAt || r.date,
+          helpful: r.helpful || 0,
+          notHelpful: r.notHelpful || 0,
+          verified: r.verified !== undefined ? r.verified : true,
         }));
         setReviews(mapped || []);
       }
@@ -338,7 +352,7 @@ const ProductDetail = () => {
                       key={idx}
                       onClick={() => {
                         setSelectedColor(colorName);
-                        setSelectedSize("");
+                        // do not clear selectedSize so user can change sizes independently
                       }}
                       className={`relative w-12 h-12 rounded-full border-2 transition-all ${
                         isSelected 
@@ -379,9 +393,10 @@ const ProductDetail = () => {
                   const sizeObj = size as any;
                   const sizeName = language === 'ar' ? sizeObj.nameAr : sizeObj.name;
                   const isSelected = selectedSize === sizeName;
-                  const isAvailable = !selectedColor || product.variants?.some(
-                    v => v.color === selectedColor && v.size === sizeName && v.stock && v.stock > 0
-                  );
+                  // Make size selection independent of selected color: available if any variant has this size
+                  const isAvailable = product.variants?.some(
+                    (v) => v.size === sizeName && v.stock && v.stock > 0
+                  ) ?? true;
                   
                   return (
                     <button

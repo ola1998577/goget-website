@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -77,10 +77,13 @@ const RegisterOTP = () => {
     try {
       // Call verify OTP endpoint
       const res = await (await import('@/lib/api')).default.auth.verifyOTP({ phone, otp });
-      // API returns token on success; store and refresh user
-      if (res && res.token) {
+      // For registration flow we do NOT auto-login. Show success and redirect to login.
+      if (res && res.success) {
+        toast({ title: 'تم التحقق بنجاح', description: 'تم تفعيل حسابك، يمكنك الآن تسجيل الدخول' });
+        navigate('/login');
+      } else if (res && res.token) {
+        // fallback: if server returned token, use it (covers login-OTP flow)
         localStorage.setItem('authToken', res.token);
-        // refresh user data in context
         await refreshUser();
         toast({ title: 'تم التحقق بنجاح', description: 'مرحباً بك في GoGet' });
         navigate('/');

@@ -81,6 +81,7 @@ const register = async (req, res, next) => {
     console.log(`OTP for ${phone}: ${otp}`);
 
     res.status(201).json(safeJson({
+      success: true,
       message: 'User registered. Please verify OTP.',
       user: {
         id: user.id.toString(),
@@ -152,7 +153,7 @@ const login = async (req, res, next) => {
     // Generate JWT
     const token = generateToken(user.id);
 
-    res.json({
+    res.json(safeJson({
       message: 'Login successful',
       token,
       user: {
@@ -162,7 +163,7 @@ const login = async (req, res, next) => {
         phone: user.phone,
         points: parseInt(user.point),
       }
-    });
+    }));
   } catch (error) {
     next(error);
   }
@@ -190,7 +191,7 @@ const verifyOTP = async (req, res, next) => {
     await prisma.user.update({ where: { id: user.id }, data: { isVerify: true, otp: null } });
     // Generate JWT
     const token = generateToken(user.id);
-    res.json({ message: 'Account verified successfully', token });
+    res.json({ success: true, message: 'Account verified successfully', token });
   } catch (error) {
     next(error);
   }
