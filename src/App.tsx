@@ -33,6 +33,7 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 import Checkout from "./pages/Checkout";
+import Loyalty from "./pages/Loyalty";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,7 @@ const App = () => (
                         <Route path="/orders" element={<Orders />} />
                         <Route path="/about" element={<About />} />
                         <Route path="/contact" element={<Contact />} />
+                        <Route path="/loyalty" element={<Loyalty />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </main>

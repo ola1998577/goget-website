@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "@/hooks/use-toast";
+import { wheelAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from 'lucide-react';
 
-const rewards = [
+const defaultRewards = [
   { id: 1, label: "10% Off", labelAr: "خصم 10%", color: "#ef4444" },
   { id: 2, label: "Free Shipping", labelAr: "شحن مجاني", color: "#f97316" },
   { id: 3, label: "50 Points", labelAr: "50 نقطة", color: "#eab308" },
@@ -17,32 +20,94 @@ const rewards = [
 
 export const WheelOfFortune = () => {
   const { t, language } = useLanguage();
+  const { isAuthenticated } = useAuth();
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
+  const [rewards, setRewards] = useState(defaultRewards);
+  const [loading, setLoading] = useState(true);
 
-  const spinWheel = () => {
-    if (isSpinning) return;
+  useEffect(() => {
+    const fetchPrizes = async () => {
+      try {
+        const res = await wheelAPI.getPrizes(language);
+        const prizes = res?.prizes || res?.data || [];
+        if (prizes.length > 0) {
+          const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899"];
+          const formattedRewards = prizes.slice(0, 8).map((prize, idx) => ({
+            id: idx + 1,
+            label: prize.title || prize.name || `Prize ${idx + 1}`,
+            labelAr: prize.titleAr || prize.nameAr || `جائزة ${idx + 1}`,
+            color: colors[idx % colors.length],
+          }));
+          setRewards(formattedRewards);
+        }
+      } catch (err) {
+        console.error("[v0] Error fetching prizes:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPrizes();
+  }, [language]);
+
+  const spinWheel = async () => {
+    if (isSpinning || !isAuthenticated) {
+      if (!isAuthenticated) {
+        toast({
+          title: language === "ar" ? "تسجيل الدخول مطلوب" : "Login Required",
+          description: language === "ar" ? "يجب تسجيل الدخول للعب" : "You must login to play",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
 
     setIsSpinning(true);
     const randomIndex = Math.floor(Math.random() * rewards.length);
-    const baseRotation = 360 * 5; // 5 full rotations
+    const baseRotation = 360 * 5;
     const segmentAngle = 360 / rewards.length;
-    const finalRotation = baseRotation + (randomIndex * segmentAngle);
+    const finalRotation = baseRotation + randomIndex * segmentAngle;
 
     setRotation(finalRotation);
 
-    setTimeout(() => {
-      const reward = rewards[randomIndex];
-      const label = language === "ar" ? reward.labelAr : reward.label;
+    try {
+      const res = await wheelAPI.spinWheel();
       
+      setTimeout(() => {
+        const reward = rewards[randomIndex];
+        const label = language === "ar" ? reward.labelAr : reward.label;
+        
+        toast({
+          title: language === "ar" ? "تهانينا!" : "Congratulations!",
+          description: `${language === "ar" ? "لقد فزت ب" : "You Won"}: ${label}!`,
+        });
+        
+        setIsSpinning(false);
+      }, 4000);
+    } catch (err: any) {
       toast({
-        title: t("congratulations"),
-        description: `${t("youWon")}: ${label}!`,
+        title: language === "ar" ? "خطأ" : "Error",
+        description: err.message || (language === "ar" ? "فشل الدوران" : "Failed to spin"),
+        variant: "destructive",
       });
-      
       setIsSpinning(false);
-    }, 4000);
+    }
   };
+
+  if (loading) {
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader className="gradient-primary text-primary-foreground">
+          <CardTitle className="text-center text-2xl">{t("spinToWin")}</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 text-center">
+          <div className="flex items-center justify-center h-48">
+            <Loader2 className="w-6 h-6 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -91,7 +156,7 @@ export const WheelOfFortune = () => {
         <p className="text-muted-foreground mb-4">{t("tryYourLuck")}</p>
         <Button
           onClick={spinWheel}
-          disabled={isSpinning}
+          disabled={isSpinning || !isAuthenticated}
           size="lg"
           className="gradient-primary"
         >

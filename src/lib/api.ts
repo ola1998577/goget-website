@@ -346,6 +346,27 @@ export const notificationAPI = {
     apiRequest(`/notifications?lang=${lang}`),
 };
 
+// Loyalty APIs
+export const loyaltyAPI = {
+  getProfile: (lang = 'en') =>
+    apiRequest(`/loyalty/profile?lang=${lang}`),
+
+  getTiers: (lang = 'en') =>
+    apiRequest(`/loyalty/tiers?lang=${lang}`),
+
+  claimReward: (rewardId: string) =>
+    apiRequest('/loyalty/claim-reward', {
+      method: 'POST',
+      body: JSON.stringify({ rewardId }),
+    }),
+
+  useReward: (userRewardId: string) =>
+    apiRequest('/loyalty/use-reward', {
+      method: 'POST',
+      body: JSON.stringify({ userRewardId }),
+    }),
+};
+
 export default {
   auth: authAPI,
   product: productAPI,
@@ -365,4 +386,5 @@ export default {
   contact: contactAPI,
   settings: settingsAPI,
   notification: notificationAPI,
+  loyalty: loyaltyAPI,
 };

@@ -1,57 +1,39 @@
 const prisma = require('../config/database');
 
-// Get areas by governate id (areas table expected)
 exports.getAreas = async (req, res, next) => {
   try {
     const governateId = req.query.governateId || req.query.govId || req.params.id;
-    const lang = (req.query.lang || 'en').toString();
+    
     if (!governateId) return res.status(400).json({ success: false, message: 'governateId is required' });
 
     let govIdBig;
-    try { govIdBig = BigInt(governateId); } catch (e) { return res.status(400).json({ success: false, message: 'Invalid governateId' }); }
-
-    // Prefer translations table when available. Try a few strategies and fall back to simple columns.
-    try {
-      const queryWithTrans = `
-        SELECT a.id,
-               COALESCE(t.title, t.name, a.name, a.title, '') AS name,
-               COALESCE(t.title_ar, t.name_ar, a.name_ar, '') AS nameAr
-        FROM areas a
-        LEFT JOIN areas_translations t ON (t.area_id = a.id AND (t.language = ? OR t.locale = ?))
-        WHERE a.governate_id = ?
-        ORDER BY a.id ASC
-      `;
-
-      const rows = await prisma.$queryRawUnsafe(queryWithTrans, lang, lang, govIdBig);
-      if (rows && rows.length) {
-        const formatted = rows.map(a => ({ id: String(a.id), name: a.name || '', nameAr: a.nameAr || '' }));
-        return res.json({ success: true, data: formatted });
-      }
-    } catch (e) {
-      // translation table may not exist or query structure differs; fall through to other strategies
-      console.warn('areas translations query failed:', e && e.message ? e.message : e);
+    try { 
+      govIdBig = BigInt(governateId); 
+    } catch (e) { 
+      return res.status(400).json({ success: false, message: 'Invalid governateId' }); 
     }
 
-    // Fallback: try a simple columns-only query (existing behavior)
-    try {
-      const query = `
-        SELECT id, COALESCE(name, title, '') AS name, COALESCE(name_ar, title_ar, '') AS nameAr
-        FROM areas
-        WHERE governate_id = ?
-        ORDER BY id ASC
-      `;
+    // Inspect actual DB columns for the `areas` table to support differing schemas
+    const cols = await prisma.$queryRawUnsafe("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'areas'");
+    const colNames = (cols || []).map(c => String(c.COLUMN_NAME).toLowerCase());
 
-      const areas = await prisma.$queryRawUnsafe(query, govIdBig);
-      const formatted = (areas || []).map(a => ({ id: String(a.id), name: a.name || '', nameAr: a.nameAr || '' }));
-      return res.json({ success: true, data: formatted });
-    } catch (error) {
-      console.error('getAreas final fallback error:', error && error.message ? error.message : error);
-      return res.json({ success: true, data: [] });
-    }
+    // Determine possible name columns (fallbacks)
+    const nameCol = colNames.includes('name') ? 'name' : (colNames.includes('title') ? 'title' : (colNames.includes('name_ar') ? 'name_ar' : (colNames.includes('title_ar') ? 'title_ar' : null)));
+    const nameArCol = colNames.includes('name_ar') ? 'name_ar' : (colNames.includes('title_ar') ? 'title_ar' : (colNames.includes('name') ? 'name' : null));
+
+    const selectName = nameCol ? `COALESCE(${nameCol}, '')` : "''";
+    const selectNameAr = nameArCol ? `COALESCE(${nameArCol}, '')` : "''";
+
+    // Use raw SQL to avoid Prisma schema mismatches when DB has different column names
+    const sql = `SELECT id, governate_id as governateId, ${selectName} as name, ${selectNameAr} as nameAr FROM areas WHERE governate_id = ${String(govIdBig)} ORDER BY id ASC`;
+    const rows = await prisma.$queryRawUnsafe(sql);
+
+    const formatted = (rows || []).map(r => ({ id: String(r.id), name: r.name || '', nameAr: r.nameAr || '' }));
+
+    return res.json({ success: true, data: formatted });
   } catch (error) {
-    // generic catch-all
-    console.error('getAreas error:', error && error.message ? error.message : error);
-    return res.json({ success: true, data: [] });
+    console.error('[v0] getAreas error:', error && error.stack ? error.stack : error);
+    return res.status(500).json({ success: false, message: 'Database error occurred' });
   }
 };
 
@@ -60,14 +42,21 @@ exports.getAreaById = async (req, res, next) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ success: false, message: 'id is required' });
+    
     let idBig;
-    try { idBig = BigInt(id); } catch (e) { return res.status(400).json({ success: false, message: 'Invalid id' }); }
+    try { 
+      idBig = BigInt(id); 
+    } catch (e) { 
+      return res.status(400).json({ success: false, message: 'Invalid id' }); 
+    }
 
-    const query = `SELECT id, COALESCE(name, title, '') AS name, COALESCE(name_ar, title_ar, '') AS nameAr FROM areas WHERE id = ? LIMIT 1`;
-    const rows = await prisma.$queryRawUnsafe(query, idBig);
-    if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: 'Area not found' });
-    const a = rows[0];
-    return res.json({ success: true, data: { id: String(a.id), name: a.name || '', nameAr: a.nameAr || '' } });
+    const area = await prisma.area.findUnique({
+      where: { id: idBig }
+    });
+
+    if (!area) return res.status(404).json({ success: false, message: 'Area not found' });
+
+    return res.json({ success: true, data: { id: String(area.id), name: area.name || '', nameAr: area.nameAr || '' } });
   } catch (error) {
     next(error);
   }

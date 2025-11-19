@@ -107,7 +107,7 @@ const login = async (req, res, next) => {
 
     const { email, password } = req.body;
 
-    // Find user (by email or phone)
+    // Find user (by email or phone) - select only needed fields to avoid querying missing DB columns
     const user = await prisma.user.findFirst({
       where: {
         OR: [
@@ -115,7 +115,22 @@ const login = async (req, res, next) => {
           { phone: email }, // allow login by phone as well
         ]
       },
-      include: { token: true }
+      select: {
+        id: true,
+        fName: true,
+        lName: true,
+        email: true,
+        phone: true,
+        password: true,
+        isVerify: true,
+        point: true,
+        token: {
+          select: {
+            id: true,
+            islogin: true,
+          }
+        }
+      }
     });
 
     if (!user) {

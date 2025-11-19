@@ -272,11 +272,33 @@ const createOrder = async (req, res, next) => {
 
     // Credit points to user: simple rule = floor(amount) points
     try {
-      const existingUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { point: true } });
+      const existingUser = await prisma.user.findUnique({ 
+        where: { id: req.user.id }, 
+        select: { point: true, monthlyOrderCount: true } 
+      });
       const currentPoints = parseInt(existingUser?.point || '0');
       const pointsToAdd = Math.floor(amount || 0);
       const newPoints = currentPoints + pointsToAdd;
-      await prisma.user.update({ where: { id: req.user.id }, data: { point: newPoints.toString() } });
+      const newMonthlyCount = (existingUser?.monthlyOrderCount || 0) + 1;
+
+      // Create point history record
+      await prisma.loyaltyPointHistory.create({
+        data: {
+          userId: req.user.id,
+          orderId: order.id,
+          points: pointsToAdd,
+          reason: 'order'
+        }
+      });
+
+      // Update user with new points and monthly order count
+      await prisma.user.update({ 
+        where: { id: req.user.id }, 
+        data: { 
+          point: newPoints.toString(),
+          monthlyOrderCount: newMonthlyCount
+        } 
+      });
     } catch (e) {
       console.error('Failed to credit points for order', e);
     }

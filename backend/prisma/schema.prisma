@@ -24,6 +24,8 @@ model User {
   rememberToken   String?   @map("remember_token") @db.VarChar(100)
   createdAt       DateTime? @default(now()) @map("created_at")
   updatedAt       DateTime? @updatedAt @map("updated_at")
+  loyaltyTier     BigInt?   @map("loyalty_tier_id") @db.UnsignedBigInt
+  monthlyOrderCount Int      @default(0) @map("monthly_order_count")
 
   token         Token?          @relation(fields: [tokenId], references: [id], onDelete: Cascade)
   stores        Store[]
@@ -32,6 +34,8 @@ model User {
   prizeUsers    PrizeUser[]
   locations     LocationUser[]
   categoryUsers CategoryUser[]
+  pointHistory  LoyaltyPointHistory[]
+  userRewards   UserLoyaltyReward[]
 
   @@map("users")
 }
@@ -425,6 +429,7 @@ model Governate {
 
   translations GovernateTranslation[]
   categories   Category[]
+  areas        Area[]
 
   @@map("governates")
 }
@@ -452,4 +457,103 @@ model ContactUse {
   updatedAt DateTime? @updatedAt @map("updated_at")
 
   @@map("contact_uses")
+}
+
+model Area {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  governateId BigInt    @map("governate_id") @db.UnsignedBigInt
+  name        String?   @db.VarChar(255)
+  nameAr      String?   @map("name_ar") @db.VarChar(255)
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+
+  governate Governate @relation(fields: [governateId], references: [id], onDelete: Cascade)
+
+  @@map("areas")
+}
+
+model LoyaltyTier {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name        String    @db.VarChar(255)
+  minOrders   Int       @map("min_orders")
+  description String?   @db.Text
+  benefits    String?   @db.Text // JSON storing benefits as text
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+
+  translations LoyaltyTierTranslation[]
+
+  @@map("loyalty_tiers")
+}
+
+model LoyaltyTierTranslation {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  loyaltyTierId BigInt   @map("loyalty_tier_id") @db.UnsignedBigInt
+  name         String    @db.VarChar(255)
+  description  String?   @db.Text
+  language     String    @db.VarChar(2)
+  createdAt    DateTime? @default(now()) @map("created_at")
+  updatedAt    DateTime? @updatedAt @map("updated_at")
+
+  loyaltyTier  LoyaltyTier @relation(fields: [loyaltyTierId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_tier_translations")
+}
+
+model LoyaltyReward {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  pointsRequired Int    @map("points_required")
+  discountAmount Decimal @map("discount_amount") @db.Decimal(10, 2)
+  type        String    @db.VarChar(255) // 'discount', 'shipping', 'gift'
+  status      String    @default("active") @db.VarChar(255)
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+
+  translations LoyaltyRewardTranslation[]
+  userRewards  UserLoyaltyReward[]
+
+  @@map("loyalty_rewards")
+}
+
+model LoyaltyRewardTranslation {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  loyaltyRewardId BigInt    @map("loyalty_reward_id") @db.UnsignedBigInt
+  title           String    @db.VarChar(255)
+  description     String?   @db.Text
+  language        String    @db.VarChar(2)
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+
+  loyaltyReward   LoyaltyReward @relation(fields: [loyaltyRewardId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_reward_translations")
+}
+
+model UserLoyaltyReward {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId          BigInt    @map("user_id") @db.UnsignedBigInt
+  loyaltyRewardId BigInt    @map("loyalty_reward_id") @db.UnsignedBigInt
+  status          String    @default("pending") @db.VarChar(255) // 'pending', 'used', 'expired'
+  usedAt          DateTime? @map("used_at")
+  expiresAt       DateTime? @map("expires_at")
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loyaltyReward   LoyaltyReward  @relation(fields: [loyaltyRewardId], references: [id], onDelete: Cascade)
+
+  @@map("user_loyalty_rewards")
+}
+
+model LoyaltyPointHistory {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt    @map("user_id") @db.UnsignedBigInt
+  orderId   BigInt?   @map("order_id") @db.UnsignedBigInt
+  points    Int
+  reason    String    @db.VarChar(255) // 'order', 'review', 'referral', 'profile'
+  createdAt DateTime? @default(now()) @map("created_at")
+
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_point_histories")
 }

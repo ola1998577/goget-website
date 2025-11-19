@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, X } from "lucide-react";
+import { Search, X } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,24 +29,24 @@ const Offers = () => {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (offer) =>
-          offer.title.toLowerCase().includes(query) ||
-          offer.titleAr.includes(query) ||
-          offer.description.toLowerCase().includes(query) ||
-          offer.descriptionAr.includes(query)
+          (offer.title && offer.title.toLowerCase().includes(query)) ||
+          (offer.nameAr && offer.nameAr.includes(query))
       );
     }
 
     // Sorting
     if (sortBy === "discount-high") {
-      filtered.sort((a, b) => b.discount - a.discount);
+      filtered.sort((a, b) => (b.discount || 0) - (a.discount || 0));
     } else if (sortBy === "discount-low") {
-      filtered.sort((a, b) => a.discount - b.discount);
-    } else if (sortBy === "ending-soon") {
-      filtered.sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+      filtered.sort((a, b) => (a.discount || 0) - (b.discount || 0));
+    } else if (sortBy === "price-low") {
+      filtered.sort((a, b) => a.price - b.price);
+    } else if (sortBy === "price-high") {
+      filtered.sort((a, b) => b.price - a.price);
     }
 
     return filtered;
-  }, [searchQuery, sortBy]);
+  }, [offers, searchQuery, sortBy]);
 
   useEffect(() => {
     const fetchOffers = async () => {
@@ -54,11 +54,13 @@ const Offers = () => {
       setError(null);
       try {
         const res = await api.product.getOffers({ limit: 100, lang: language });
-        // API might return { success: true, data: [...] } or the array directly
+        // API returns { success: true, data: [...] }
         const data = res?.data ?? res;
         setOffers(Array.isArray(data) ? data : []);
       } catch (err: any) {
+        console.error("[v0] Error fetching offers:", err);
         setError(err?.message || 'Failed to load offers');
+        setOffers([]);
       } finally {
         setLoading(false);
       }
@@ -135,8 +137,11 @@ const Offers = () => {
               <SelectItem value="discount-low">
                 {language === "ar" ? "الخصم الأقل" : "Lowest Discount"}
               </SelectItem>
-              <SelectItem value="ending-soon">
-                {language === "ar" ? "ينتهي قريباً" : "Ending Soon"}
+              <SelectItem value="price-low">
+                {language === "ar" ? "السعر الأقل" : "Price: Low to High"}
+              </SelectItem>
+              <SelectItem value="price-high">
+                {language === "ar" ? "السعر الأعلى" : "Price: High to Low"}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -155,50 +160,50 @@ const Offers = () => {
           <p className="text-destructive text-lg">{error}</p>
         </div>
       )}
-      {currentOffers.length > 0 ? (
+      {!loading && !error && currentOffers.length > 0 ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentOffers.map((offer) => {
               const title = language === "ar"
-                ? (offer.titleAr || offer.nameAr || offer.translations?.[0]?.titleAr)
-                : (offer.title || offer.name || offer.translations?.[0]?.title);
-
-              const description = language === "ar"
-                ? (offer.descriptionAr || offer.shortDescriptionAr || offer.translations?.[0]?.descriptionAr)
-                : (offer.description || offer.shortDescription || offer.translations?.[0]?.description);
-              const daysLeft = Math.ceil(
-                (new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-              );
+                ? (offer.nameAr || offer.title)
+                : (offer.title || offer.name);
 
               return (
-                <Link key={offer.id} to={`/offer/${offer.id}`}>
+                <Link key={offer.id} to={`/product/${offer.id}`}>
                   <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300">
                     <div className="relative overflow-hidden h-56">
                       <img
-                        src={offer.image}
+                        src={offer.image || "/placeholder.svg"}
                         alt={title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                       />
-                      <Badge className="absolute top-4 left-4 text-lg px-4 py-2 bg-destructive">
-                        {offer.discount}% OFF
-                      </Badge>
-                      {daysLeft <= 7 && daysLeft > 0 && (
-                        <Badge className="absolute top-4 right-4 bg-warning">
-                          {language === "ar" ? `${daysLeft} أيام` : `${daysLeft} days left`}
+                      {offer.discount && (
+                        <Badge className="absolute top-4 left-4 text-lg px-4 py-2 bg-destructive">
+                          {Math.round(offer.discount)}% OFF
                         </Badge>
                       )}
                     </div>
                     <CardContent className="p-6">
-                      <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
+                      <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors line-clamp-2">
                         {title}
                       </h3>
-                      <p className="text-muted-foreground mb-4">{description}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {language === "ar" ? "ينتهي: " : "Ends: "}
-                        {new Date(offer.endDate).toLocaleDateString(
-                          language === "ar" ? "ar-EG" : "en-US"
+                      <div className="flex justify-between items-end">
+                        <div>
+                          {offer.totalPrice && (
+                            <p className="text-sm text-muted-foreground line-through">
+                              {offer.totalPrice}
+                            </p>
+                          )}
+                          <p className="text-2xl font-bold text-primary">
+                            {offer.price}
+                          </p>
+                        </div>
+                        {offer.rating && (
+                          <div className="text-right">
+                            <p className="text-sm text-yellow-500">★ {offer.rating}</p>
+                          </div>
                         )}
-                      </p>
+                      </div>
                     </CardContent>
                   </Card>
                 </Link>
@@ -207,22 +212,26 @@ const Offers = () => {
           </div>
 
           {/* Pagination */}
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            itemsPerPage={ITEMS_PER_PAGE}
-            totalItems={filteredOffers.length}
-          />
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              itemsPerPage={ITEMS_PER_PAGE}
+              totalItems={filteredOffers.length}
+            />
+          )}
         </>
       ) : (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">
-            {language === "ar" 
-              ? "لم يتم العثور على عروض تطابق معايير البحث"
-              : "No offers found matching your criteria"}
-          </p>
-        </div>
+        !loading && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground text-lg">
+              {language === "ar" 
+                ? "لم يتم العثور على عروض تطابق معايير البحث"
+                : "No offers found matching your criteria"}
+            </p>
+          </div>
+        )
       )}
     </div>
   );

@@ -122,7 +122,7 @@ const translations: Record<Language, Record<string, string>> = {
     viewDetails: "عرض التفاصيل",
     
     // Cart
-    myCart: "سلتي",
+    myCart: "��لتي",
     emptyCart: "سلتك فارغة",
     total: "المجموع",
     checkout: "إتمام الطلب",

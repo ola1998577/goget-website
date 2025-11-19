@@ -5,25 +5,19 @@ const getPrizes = async (req, res, next) => {
   try {
     const { lang = 'en' } = req.query;
 
-    const prizes = await prisma.prize.findMany({
-      include: {
-        translations: {
-          where: { language: lang }
-        }
-      }
-    });
+    const prizes = await prisma.prize.findMany();
 
     const formattedPrizes = prizes.map(prize => {
-      const translation = prize.translations[0] || {};
       return {
         id: prize.id.toString(),
         title: prize.title,
-        name: translation.name || 'Prize',
+        name: prize.title, // Use title directly since there are no translations
       };
     });
 
     res.json({ prizes: formattedPrizes });
   } catch (error) {
+    console.error('[v0] getPrizes error:', error && error.stack ? error.stack : error);
     next(error);
   }
 };
@@ -31,37 +25,61 @@ const getPrizes = async (req, res, next) => {
 // Spin wheel
 const spinWheel = async (req, res, next) => {
   try {
+    // Helper to coerce user id to BigInt when possible
+    const toBigInt = (v) => {
+      try {
+        if (typeof v === 'bigint') return v;
+        if (typeof v === 'string' && v.match(/^\d+$/)) return BigInt(v);
+        if (typeof v === 'number' && Number.isSafeInteger(v)) return BigInt(v);
+      } catch (e) {
+        // fallthrough
+      }
+      return v;
+    };
+
+    const userId = toBigInt(req.user && req.user.id);
+
     // Get all prizes
     const prizes = await prisma.prize.findMany();
 
-    if (prizes.length === 0) {
+    if (!prizes || prizes.length === 0) {
       return res.status(404).json({ error: 'No prizes available' });
     }
 
     // Select random prize
     const randomPrize = prizes[Math.floor(Math.random() * prizes.length)];
 
-    // Award prize to user
+    console.info('[v0] spinWheel: awarding prize', randomPrize && randomPrize.id, 'to user', String(userId));
+
+    // Award prize to user (use coerced id when possible)
     await prisma.prizeUser.create({
       data: {
-        userId: req.user.id,
+        userId: userId,
         prizeId: randomPrize.id,
       }
     });
 
     // Parse prize value and update user points if applicable
-    const prizeValue = parseInt(randomPrize.title);
-    if (!isNaN(prizeValue) && prizeValue > 0) {
+    let prizeValue = null;
+    try {
+      const parsed = parseInt(String(randomPrize.title || ''), 10);
+      prizeValue = Number.isNaN(parsed) ? null : parsed;
+    } catch (e) {
+      prizeValue = null;
+    }
+
+    if (prizeValue !== null && prizeValue > 0) {
       const user = await prisma.user.findUnique({
-        where: { id: req.user.id }
+        where: { id: userId }
       });
 
       if (user) {
-        const currentPoints = parseInt(user.point) || 0;
+        const currentPoints = parseInt(String(user.point || '0'), 10) || 0;
+        const newPoints = currentPoints + prizeValue;
         await prisma.user.update({
-          where: { id: req.user.id },
+          where: { id: userId },
           data: {
-            point: (currentPoints + prizeValue).toString(),
+            point: String(newPoints),
           }
         });
       }
@@ -73,9 +91,10 @@ const spinWheel = async (req, res, next) => {
         id: randomPrize.id.toString(),
         title: randomPrize.title,
       },
-      pointsEarned: !isNaN(prizeValue) ? prizeValue : 0,
+      pointsEarned: prizeValue || 0,
     });
   } catch (error) {
+    console.error('[v0] spinWheel error:', error && error.stack ? error.stack : error);
     next(error);
   }
 };
@@ -114,6 +133,7 @@ const getUserPrizes = async (req, res, next) => {
 
     res.json({ prizes: formattedPrizes });
   } catch (error) {
+    console.error('[v0] getUserPrizes error:', error && error.stack ? error.stack : error);
     next(error);
   }
 };

@@ -46,6 +46,7 @@ app.use('/api/shipping', require('./routes/shipping.routes'));
 app.use('/api/contact', require('./routes/contact.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
+app.use('/api/loyalty', require('./routes/loyalty.routes'));
 
 // Health check
 app.get('/health', (req, res) => {

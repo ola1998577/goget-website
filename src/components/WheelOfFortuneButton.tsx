@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Gift } from "lucide-react";
+import { Gift } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,10 +20,10 @@ export const WheelOfFortuneButton = () => {
       <Button
         onClick={() => setIsOpen(true)}
         size="lg"
-        className="fixed bottom-8 right-8 z-50 h-20 w-20 rounded-full shadow-2xl gradient-accent hover:scale-110 transition-all animate-pulse hover:animate-none border-4 border-white/20"
+        className="fixed bottom-8 right-8 z-50 h-16 w-16 rounded-full shadow-lg bg-gradient-to-br from-amber-400 via-orange-400 to-red-500 hover:from-amber-500 hover:via-orange-500 hover:to-red-600 text-white hover:scale-110 transition-all hover:shadow-xl border-2 border-white/30 backdrop-blur-sm"
         aria-label={language === "ar" ? "عجلة الحظ" : "Wheel of Fortune"}
       >
-        <Gift className="h-10 w-10" />
+        <Gift className="h-8 w-8" />
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>

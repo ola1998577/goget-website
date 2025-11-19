@@ -70,9 +70,7 @@ const getCategoryById = async (req, res, next) => {
     const category = await prisma.category.findUnique({
       where: { id: BigInt(id) },
       include: {
-        translations: {
-          where: { language: lang }
-        },
+        translations: true,
         children: {
           include: {
             translations: {
@@ -94,15 +92,21 @@ const getCategoryById = async (req, res, next) => {
     });
 
     if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
+      return res.status(404).json({ success: false, error: 'Category not found' });
     }
 
-    const translation = category.translations[0] || {};
-    const parentTranslation = category.parent?.translations[0] || {};
+    const translation = (category.translations || []).find(t => t.language === lang) || category.translations[0] || {};
+    const parentTranslation = category.parent?.translations ? 
+      (category.parent.translations || []).find(t => t.language === lang) || category.parent.translations[0] || {} 
+      : {};
     const getImageUrl = require('../utils/getImageUrl');
 
     const formattedCategory = {
       id: category.id.toString(),
+      name: translation.title || 'No title',
+      nameAr: (category.translations || []).find(t => t.language === 'ar')?.title || 'No title',
+      description: translation.title || 'No description',
+      descriptionAr: (category.translations || []).find(t => t.language === 'ar')?.title || 'No description',
       title: translation.title || 'No title',
       image: getImageUrl(category.image),
       productCount: category._count.products,
@@ -120,7 +124,7 @@ const getCategoryById = async (req, res, next) => {
       })
     };
 
-    res.json({ category: formattedCategory });
+    res.json({ success: true, data: formattedCategory });
   } catch (error) {
     next(error);
   }
@@ -165,14 +169,13 @@ const getCategoryProducts = async (req, res, next) => {
         take,
         orderBy,
         include: {
-          translations: {
-            where: { language: lang }
-          },
+          translations: true,
+          productImages: true,
+          colors: true,
+          sizes: true,
           store: {
             include: {
-              translations: {
-                where: { language: lang }
-              }
+              translations: true
             }
           },
           reviews: {
@@ -185,8 +188,10 @@ const getCategoryProducts = async (req, res, next) => {
 
     const getImageUrl = require('../utils/getImageUrl');
     const formattedProducts = products.map(product => {
-      const translation = product.translations[0] || {};
-      const storeTranslation = product.store?.translations[0] || {};
+      const translation = (product.translations || []).find(t => t.language === lang) || product.translations[0] || {};
+      const storeTranslation = product.store?.translations ? 
+        (product.store.translations || []).find(t => t.language === lang) || product.store.translations[0] || {}
+        : {};
       
       const ratings = product.reviews.map(r => parseInt(r.rate));
       const avgRating = ratings.length > 0 
@@ -195,14 +200,22 @@ const getCategoryProducts = async (req, res, next) => {
 
       return {
         id: product.id.toString(),
+        name: translation.title || 'No title',
+        nameAr: (product.translations || []).find(t => t.language === 'ar')?.title || 'No title',
         title: translation.title || 'No title',
         description: translation.description || '',
+        descriptionAr: (product.translations || []).find(t => t.language === 'ar')?.description || '',
         image: getImageUrl(product.image),
+        images: product.productImages.map(img => getImageUrl(img.image)),
         price: product.price,
         discount: product.discount,
         totalPrice: product.totalPrice,
+        oldPrice: product.totalPrice,
         rating: parseFloat(avgRating.toFixed(1)),
         reviewCount: product.reviews.length,
+        colors: product.colors.map(c => ({ id: c.id.toString(), name: c.color, nameAr: c.color, hex: c.color })),
+        sizes: product.sizes.map(s => ({ id: s.id.toString(), name: s.size, nameAr: s.size })),
+        storeId: product.storeId?.toString(),
         store: {
           id: product.store.id.toString(),
           name: storeTranslation.name || 'Unknown',
@@ -211,7 +224,8 @@ const getCategoryProducts = async (req, res, next) => {
     });
 
     res.json({
-      products: formattedProducts,
+      success: true,
+      data: formattedProducts,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

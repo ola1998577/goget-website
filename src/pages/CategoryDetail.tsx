@@ -42,7 +42,7 @@ const CategoryDetail = () => {
           categoryAPI.getCategoryProducts(id, { lang: language }),
         ]);
 
-        if (categoryRes.success) setCategory(categoryRes.data);
+        if (categoryRes.success && categoryRes.data) setCategory(categoryRes.data);
         if (storesRes.success) setStores(storesRes.data || []);
         if (productsRes.success) setAllProducts(productsRes.data || []);
       } catch (error) {
