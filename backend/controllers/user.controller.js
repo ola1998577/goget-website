@@ -1,5 +1,21 @@
 const prisma = require('../config/database');
 
+// Helper: convert BigInt values in an object/array to strings recursively
+function convertBigInt(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(convertBigInt);
+  if (obj instanceof Date) return obj; // leave dates intact
+  if (typeof obj === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = convertBigInt(v);
+    }
+    return out;
+  }
+  return obj;
+}
+
 // Get user addresses
 const getUserAddresses = async (req, res, next) => {
   try {
@@ -8,28 +24,36 @@ const getUserAddresses = async (req, res, next) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ addresses });
+    res.json({ addresses: convertBigInt(addresses) });
   } catch (error) {
     next(error);
   }
 };
 
-// Add address
+// Add address (areaId optional)
 const addAddress = async (req, res, next) => {
   try {
     const { governateId, areaId, description, type = 'home', title } = req.body;
 
-    if (!governateId || !areaId || !description) {
-      return res.status(400).json({ error: 'Governate, area, and description are required' });
+    if (!governateId || !description) {
+      return res.status(400).json({ error: 'Governate and description are required' });
     }
 
-    // Validate governateId and areaId exist in DB to avoid FK constraint errors
-    let govIdBig, areaIdBig;
+    // Validate governateId (required) and areaId (optional)
+    let govIdBig;
     try {
       govIdBig = BigInt(governateId);
-      areaIdBig = BigInt(areaId);
     } catch (e) {
-      return res.status(400).json({ error: 'Invalid governateId or areaId format' });
+      return res.status(400).json({ error: 'Invalid governateId format' });
+    }
+
+    let areaIdBig = null;
+    if (areaId) {
+      try {
+        areaIdBig = BigInt(areaId);
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid areaId format' });
+      }
     }
 
     const governate = await prisma.governate.findUnique({ where: { id: govIdBig } });
@@ -37,28 +61,35 @@ const addAddress = async (req, res, next) => {
       return res.status(404).json({ error: 'Governate not found' });
     }
 
-    // The "area" in this project is represented by categories linked to a governate.
-    // Verify the provided areaId exists and belongs to the given governate.
-    const area = await prisma.category.findUnique({ where: { id: areaIdBig } });
-    if (!area) {
-      return res.status(404).json({ error: 'Area not found' });
+    // If areaId provided, verify it exists in the `areas` table and belongs to the governate
+    if (areaIdBig) {
+      try {
+        const rows = await prisma.$queryRawUnsafe('SELECT id, governate_id FROM areas WHERE id = ? LIMIT 1', areaIdBig);
+        const area = (rows && rows[0]) || null;
+        if (!area) {
+          return res.status(404).json({ error: 'Area not found' });
+        }
+        if (area.governate_id && String(area.governate_id) !== String(govIdBig)) {
+          return res.status(400).json({ error: 'Area does not belong to the selected governate' });
+        }
+      } catch (e) {
+        // If the areas table/query isn't available, fall back to letting DB FK handle validation
+        console.warn('Area validation query failed:', e && e.message ? e.message : e);
+      }
     }
-    if (area.governateId && String(area.governateId) !== String(govIdBig)) {
-      return res.status(400).json({ error: 'Area does not belong to the selected governate' });
-    }
+
+    // Build create data; include areaId only when provided
+    const createData = {
+      userId: req.user.id,
+      governateId: govIdBig,
+      description,
+      type,
+      title,
+    };
+    if (areaIdBig) createData.areaId = areaIdBig;
 
     try {
-      const address = await prisma.locationUser.create({
-        data: {
-          userId: req.user.id,
-          governateId: govIdBig,
-          areaId: areaIdBig,
-          description,
-          type,
-          title,
-        }
-      });
-
+      const address = await prisma.locationUser.create({ data: createData });
       res.status(201).json({
         message: 'Address added successfully',
         address: {
@@ -68,7 +99,6 @@ const addAddress = async (req, res, next) => {
         }
       });
     } catch (err) {
-      // Translate common Prisma FK error to friendly message
       if (err && err.code === 'P2003') {
         return res.status(400).json({ error: 'Invalid areaId: foreign key constraint failed. Make sure the selected area exists.' });
       }
@@ -82,45 +112,44 @@ const addAddress = async (req, res, next) => {
 // Update address
 const updateAddress = async (req, res, next) => {
   try {
-      if (!governateId || !description) {
-        return res.status(400).json({ error: 'Governate and description are required' });
+    const { id } = req.params;
+    const { governateId, areaId, description, type, title } = req.body;
 
     const address = await prisma.locationUser.findFirst({
       where: {
         id: BigInt(id),
         userId: req.user.id,
       }
-       areaIdBig = areaId ? BigInt(areaId) : null;
+    });
 
     if (!address) {
       return res.status(404).json({ error: 'Address not found' });
     }
 
     const updateData = {};
-    if (governateId) updateData.governateId = BigInt(governateId);
-    if (areaId) updateData.areaId = BigInt(areaId);
+    if (governateId) {
+      try { updateData.governateId = BigInt(governateId); } catch (e) { return res.status(400).json({ error: 'Invalid governateId format' }); }
+    }
+    if (areaId) {
+      try { updateData.areaId = BigInt(areaId); } catch (e) { return res.status(400).json({ error: 'Invalid areaId format' }); }
+    }
     if (description) updateData.description = description;
-      // If areaId provided, verify it exists and belongs to governate
-      if (areaIdBig) {
-        const area = await prisma.category.findUnique({ where: { id: areaIdBig } });
-        if (!area) {
-          return res.status(404).json({ error: 'Area not found' });
-        }
-        if (area.governateId && String(area.governateId) !== String(govIdBig)) {
+    if (type) updateData.type = type;
+    if (title !== undefined) updateData.title = title;
+
+    // If both governateId and areaId present, verify association via `areas` table when possible
+    if (updateData.governateId && updateData.areaId) {
+      try {
+        const rows = await prisma.$queryRawUnsafe('SELECT id, governate_id FROM areas WHERE id = ? LIMIT 1', updateData.areaId);
+        const area = (rows && rows[0]) || null;
+        if (!area) return res.status(404).json({ error: 'Area not found' });
+        if (area.governate_id && String(area.governate_id) !== String(updateData.governateId)) {
           return res.status(400).json({ error: 'Area does not belong to the selected governate' });
         }
+      } catch (e) {
+        console.warn('Area validation query failed:', e && e.message ? e.message : e);
       }
-    if (type) updateData.type = type;
-      // Build create data; include areaId only when provided
-      const createData = {
-        userId: req.user.id,
-        governateId: govIdBig,
-        description,
-        type,
-        title,
-      };
-      if (areaIdBig) createData.areaId = areaIdBig;
-    if (title !== undefined) updateData.title = title;
+    }
 
     const updatedAddress = await prisma.locationUser.update({
       where: { id: BigInt(id) },
@@ -129,7 +158,7 @@ const updateAddress = async (req, res, next) => {
 
     res.json({
       message: 'Address updated successfully',
-      address: updatedAddress,
+      address: convertBigInt(updatedAddress),
     });
   } catch (error) {
     next(error);
@@ -152,9 +181,7 @@ const deleteAddress = async (req, res, next) => {
       return res.status(404).json({ error: 'Address not found' });
     }
 
-    await prisma.locationUser.delete({
-      where: { id: BigInt(id) }
-    });
+    await prisma.locationUser.delete({ where: { id: BigInt(id) } });
 
     res.json({ message: 'Address deleted successfully' });
   } catch (error) {

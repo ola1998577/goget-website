@@ -243,6 +243,16 @@ export const marketAPI = {
   },
 };
 
+// Area APIs
+export const areaAPI = {
+  getAreas: (governateId: string, lang = 'en') => {
+    const qs = new URLSearchParams({ governateId, lang }).toString();
+    return apiRequest(`/areas?${qs}`);
+  },
+
+  getAreaById: (id: string, lang = 'en') => apiRequest(`/areas/${id}?lang=${lang}`),
+};
+
 // User APIs
 export const userAPI = {
   getAddresses: () => apiRequest('/users/addresses'),
@@ -346,6 +356,7 @@ export default {
   review: reviewAPI,
   store: storeAPI,
   market: marketAPI,
+  area: areaAPI,
   user: userAPI,
   quiz: quizAPI,
   wheel: wheelAPI,

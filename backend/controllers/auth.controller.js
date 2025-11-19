@@ -259,13 +259,13 @@ const getProfile = async (req, res, next) => {
       }
     });
 
-    res.json({
-      user: {
-        ...user,
-        name: `${user.fName} ${user.lName}`,
-        points: parseInt(user.point),
-      }
-    });
+      res.json(safeJson({
+        user: {
+          ...user,
+          name: `${user.fName} ${user.lName}`,
+          points: parseInt(String(user.point || 0)),
+        }
+      }));
   } catch (error) {
     next(error);
   }
@@ -296,14 +296,14 @@ const updateProfile = async (req, res, next) => {
       }
     });
 
-    res.json({
+    res.json(safeJson({
       message: 'Profile updated successfully',
       user: {
         ...user,
         name: `${user.fName} ${user.lName}`,
-        points: parseInt(user.point),
+        points: parseInt(String(user.point || 0)),
       }
-    });
+    }));
   } catch (error) {
     next(error);
   }

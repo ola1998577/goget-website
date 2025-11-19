@@ -34,6 +34,7 @@ app.use('/api/categories', require('./routes/category.routes'));
 app.use('/api/stores', require('./routes/store.routes'));
 app.use('/api/markets', require('./routes/market.routes'));
 app.use('/api/governates', require('./routes/governate.routes'));
+app.use('/api/areas', require('./routes/area.routes'));
 app.use('/api/cart', require('./routes/cart.routes'));
 app.use('/api/wishlist', require('./routes/wishlist.routes'));
 app.use('/api/orders', require('./routes/order.routes'));

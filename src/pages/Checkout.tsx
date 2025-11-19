@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
-import { userAPI, orderAPI, productAPI, shippingAPI, marketAPI } from "@/lib/api";
+import { userAPI, orderAPI, productAPI, shippingAPI, marketAPI, areaAPI } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Checkout = () => {
   const { isAuthenticated } = useAuth();
@@ -22,6 +24,8 @@ const Checkout = () => {
   const [newAddress, setNewAddress] = useState({ governateId: '', areaId: '', description: '', title: '', type: 'home' });
   const [governates, setGovernates] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
+  const [orderSuccessOpen, setOrderSuccessOpen] = useState(false);
+  const { language } = useLanguage();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -53,8 +57,9 @@ const Checkout = () => {
   }, [isAuthenticated, navigate]);
 
   const handleAddAddress = async () => {
-    if (!newAddress.governateId || !newAddress.areaId || !newAddress.description || !newAddress.type) {
-      toast({ title: 'Missing fields', description: 'Please fill governate, area, type and description', variant: 'destructive' });
+    // Area can be optional. Require governate, description and type.
+    if (!newAddress.governateId || !newAddress.description || !newAddress.type) {
+      toast({ title: 'Missing fields', description: 'Please fill governate, type and description', variant: 'destructive' });
       return;
     }
     try {
@@ -69,7 +74,7 @@ const Checkout = () => {
         // attach selected names so UI can show them immediately
         const gov = governates.find(g => String(g.id) === String(newAddress.governateId));
         const area = areas.find(a => String(a.id) === String(newAddress.areaId));
-        const enriched = { ...res.address, governateName: gov?.name || gov?.title || '', areaName: area?.title || area?.name || '' };
+        const enriched = { ...res.address, governateName: gov?.name || gov?.title || '', areaName: area ? (area?.title || area?.name || '') : '' };
         setAddresses(prev => [enriched, ...prev]);
         setNewAddress({ governateId: '', areaId: '', description: '', title: '' });
         toast({ title: 'Address added' });
@@ -130,9 +135,14 @@ const Checkout = () => {
 
       const res = await orderAPI.createOrder(orderRequest as any);
       if (res && res.success) {
+        // clear cart immediately
         clearCart();
-        toast({ title: 'Order placed', description: `Order ID: ${res.order?.orderId || res.order?.id || ''}` });
-        navigate('/orders');
+        // show a localized success dialog with celebratory icon, then redirect home
+        setOrderSuccessOpen(true);
+        setTimeout(() => {
+          setOrderSuccessOpen(false);
+          navigate('/');
+        }, 2200);
       } else {
         throw new Error(res.message || 'Failed to create order');
       }
@@ -181,9 +191,10 @@ const Checkout = () => {
                   // fetch areas (categories) for this governate
                   if (govId) {
                     try {
-                      const govRes = await marketAPI.getMarketById(govId, 'en');
-                      const cats = (govRes && (govRes.data?.categories || govRes.categories)) || (govRes.data || []);
-                      setAreas(Array.isArray(cats) ? cats : []);
+                      // prefer dedicated areas endpoint
+                      const areasRes = await areaAPI.getAreas(govId, 'en');
+                      const list = (areasRes && (areasRes.data || areasRes)) || [];
+                      setAreas(Array.isArray(list) ? list : []);
                     } catch (err) {
                       setAreas([]);
                     }
@@ -251,12 +262,25 @@ const Checkout = () => {
               </div>
 
               <div className="border-t pt-4">
-                <Button className="w-full" onClick={handlePlaceOrder} disabled={loading}>{loading ? 'Processing...' : 'Place Order'}</Button>
+                <Button className="w-full" onClick={handlePlaceOrder} disabled={loading}>{loading ? (language === 'ar' ? 'جاري المعالجة...' : 'Processing...') : (language === 'ar' ? 'إتمام الطلب' : 'Place Order')}</Button>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+      {/* Order success dialog */}
+      <Dialog open={orderSuccessOpen} onOpenChange={setOrderSuccessOpen}>
+        <DialogContent className="sm:max-w-md p-6 text-center">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">{language === 'ar' ? '🎉 تم إرسال الطلب' : '🎉 Order Placed'}</DialogTitle>
+            <DialogDescription className="mt-2">
+              {language === 'ar'
+                ? 'تم استلام طلبك بنجاح. سنقوم بمعالجته قريباً.'
+                : 'Your order was received successfully. We will process it shortly.'}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
